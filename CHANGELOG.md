@@ -4,6 +4,54 @@ All notable changes to `apntalk/esl-replay` are documented here.
 
 ## [Unreleased]
 
+## [0.9.0-rc1] — Release Candidate
+
+Release-candidate cut for the current audited replay platform surface.
+
+Highlights:
+- deterministic artifact storage and append-ordered reads
+- bounded reader filtering by time window, artifact name, job UUID, session id, and connection generation
+- checkpointed persisted-artifact progress recovery
+- handler-driven offline replay
+- filesystem-backed retention coordination
+- SQLite contract parity with the filesystem store contract
+- guarded optional re-injection as a secondary, higher-risk mode
+- hardening plus aggressive chaos coverage across corruption, restart, pruning, and guard-policy paths
+
+Late-cycle hostile-path fixes included in this RC:
+- stale filesystem `byteOffsetHint` past EOF no longer hides valid readable records
+- filesystem retention/rewrite now fails explicitly on malformed retained input
+- reinjection injector exceptions now return failed replay results with partial outcomes
+
+Not in this RC:
+- PostgreSQL support
+- non-filesystem retention backends
+- live runtime/session restoration semantics
+
+- Phase 7: explicit offline replay handler dispatch via `ReplayRecordHandlerInterface`
+  and `ReplayHandlerRegistry`
+- Dry-run replay reporting now indicates whether a matching handler would be
+  dispatched without invoking handlers
+- Handler execution failures now return failed `OfflineReplayResult` values
+  instead of silently succeeding
+- Phase 8: explicit filesystem retention coordination via `CheckpointAwarePruner`,
+  `PrunePolicy`, `RetentionPlan`, and `RetentionResult`
+- Active checkpoint compatibility is now validated before pruning via
+  `CheckpointCompatibilityValidator`
+- Retention now supports conservative age- and size-based ordered-prefix pruning
+  with protected record windows
+- Phase 9: SQLite replay artifact store with the same append-order, cursor, and
+  bounded-reader semantics as the filesystem adapter
+- Added cross-adapter contract tests covering filesystem and SQLite parity
+- Phase 10: guarded optional re-injection via `ReplayInjectorInterface`,
+  `ReplayExecutionCandidate`, `InjectionGuard`, `ArtifactExecutabilityClassifier`,
+  and `InjectionResult`
+- Re-injection is now explicit, allowlist-based, dry-run capable, and rejects
+  observational artifacts clearly
+- Phase 11: hardening and API freeze audit with large-stream adapter coverage,
+  checkpoint stress coverage, offline replay determinism checks, and explicit
+  SQLite corruption failure coverage
+
 ## [0.3.0] — Checkpointed Progress Recovery
 
 - `FilesystemCheckpointStore` implementing `ReplayCheckpointStoreInterface` with atomic write semantics

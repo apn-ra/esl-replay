@@ -16,6 +16,12 @@ final class StorageConfigTest extends TestCase
         $this->assertSame(StorageConfig::ADAPTER_FILESYSTEM, $config->adapter);
     }
 
+    public function test_accepts_sqlite_adapter(): void
+    {
+        $config = new StorageConfig('/var/replay.sqlite', StorageConfig::ADAPTER_SQLITE);
+        $this->assertSame(StorageConfig::ADAPTER_SQLITE, $config->adapter);
+    }
+
     public function test_default_adapter_is_filesystem(): void
     {
         $config = new StorageConfig('/var/replay');

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Apntalk\EslReplay\Storage;
 
 use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
+use Apntalk\EslReplay\Adapter\Sqlite\SqliteReplayArtifactStore;
 use Apntalk\EslReplay\Config\ReplayConfig;
 use Apntalk\EslReplay\Config\StorageConfig;
 use Apntalk\EslReplay\Contracts\ReplayArtifactStoreInterface;
@@ -36,9 +37,13 @@ final class ReplayArtifactStore
             StorageConfig::ADAPTER_FILESYSTEM => new FilesystemReplayArtifactStore(
                 $config->storage->storagePath,
             ),
+            StorageConfig::ADAPTER_SQLITE => new SqliteReplayArtifactStore(
+                $config->storage->storagePath,
+            ),
             default => throw new \InvalidArgumentException(
                 "ReplayArtifactStore: unknown storage adapter '{$config->storage->adapter}'. "
-                . "Supported adapters: '" . StorageConfig::ADAPTER_FILESYSTEM . "'.",
+                . "Supported adapters: '" . StorageConfig::ADAPTER_FILESYSTEM . "', '"
+                . StorageConfig::ADAPTER_SQLITE . "'.",
             ),
         };
     }

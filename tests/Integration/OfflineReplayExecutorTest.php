@@ -8,7 +8,10 @@ use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
 use Apntalk\EslReplay\Config\ExecutionConfig;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
 use Apntalk\EslReplay\Execution\OfflineReplayExecutor;
+use Apntalk\EslReplay\Execution\ReplayHandlerRegistry;
 use Apntalk\EslReplay\Tests\Fixtures\FakeCapturedArtifact;
+use Apntalk\EslReplay\Tests\Fixtures\FakeReplayInjector;
+use Apntalk\EslReplay\Tests\Fixtures\FakeReplayRecordHandler;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -121,6 +124,161 @@ final class OfflineReplayExecutorTest extends TestCase
         $this->assertSame(0, $result->skippedCount);
         $this->assertCount(3, $result->outcomes);
         $this->assertSame('observed', $result->outcomes[0]['action']);
+    }
+
+    public function test_execute_live_mode_dispatches_matching_handlers(): void
+    {
+        $store = $this->makeStore();
+        $store->write(FakeCapturedArtifact::apiDispatch());
+        $store->write(FakeCapturedArtifact::eventRaw());
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-002'));
+
+        $handler  = new FakeReplayRecordHandler(action: 'handled_api_dispatch');
+        $registry = new ReplayHandlerRegistry(['api.dispatch' => $handler]);
+
+        $executor = OfflineReplayExecutor::make(
+            new ExecutionConfig(dryRun: false),
+            $store,
+            $registry,
+        );
+        $result = $executor->execute($executor->plan($store->openCursor()));
+
+        $this->assertTrue($result->success);
+        $this->assertSame([1, 3], $handler->handledSequences);
+        $this->assertSame('handled_api_dispatch', $result->outcomes[0]['action']);
+        $this->assertSame('observed', $result->outcomes[1]['action']);
+        $this->assertSame('handled_api_dispatch', $result->outcomes[2]['action']);
+    }
+
+    public function test_execute_dry_run_does_not_dispatch_handlers(): void
+    {
+        $store = $this->makeStore();
+        $store->write(FakeCapturedArtifact::apiDispatch());
+
+        $handler  = new FakeReplayRecordHandler();
+        $registry = new ReplayHandlerRegistry(['api.dispatch' => $handler]);
+
+        $executor = OfflineReplayExecutor::make(
+            new ExecutionConfig(dryRun: true),
+            $store,
+            $registry,
+        );
+        $result = $executor->execute($executor->plan($store->openCursor()));
+
+        $this->assertSame([], $handler->handledSequences);
+        $this->assertSame('dry_run_skip', $result->outcomes[0]['action']);
+        $this->assertTrue($result->outcomes[0]['would_dispatch_handler']);
+    }
+
+    public function test_execute_reporting_remains_deterministic_with_handlers(): void
+    {
+        $store = $this->makeStore();
+        $store->write(FakeCapturedArtifact::apiDispatch());
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-002'));
+
+        $handler   = new FakeReplayRecordHandler();
+        $registry  = new ReplayHandlerRegistry(['api.dispatch' => $handler]);
+        $executorA = OfflineReplayExecutor::make(new ExecutionConfig(dryRun: false), $store, $registry);
+        $executorB = OfflineReplayExecutor::make(
+            new ExecutionConfig(dryRun: false),
+            new FilesystemReplayArtifactStore($this->tmpDir),
+            new ReplayHandlerRegistry(['api.dispatch' => new FakeReplayRecordHandler()]),
+        );
+
+        $resultA = $executorA->execute($executorA->plan($store->openCursor()));
+        $resultB = $executorB->execute($executorB->plan($store->openCursor()));
+
+        $this->assertSame(
+            array_map(static fn ($outcome) => $outcome['action'], $resultA->outcomes),
+            array_map(static fn ($outcome) => $outcome['action'], $resultB->outcomes),
+        );
+        $this->assertSame(
+            array_map(static fn ($outcome) => $outcome['append_sequence'], $resultA->outcomes),
+            array_map(static fn ($outcome) => $outcome['append_sequence'], $resultB->outcomes),
+        );
+    }
+
+    public function test_execute_returns_failed_result_when_handler_throws(): void
+    {
+        $store = $this->makeStore();
+        $store->write(FakeCapturedArtifact::apiDispatch());
+
+        $executor = OfflineReplayExecutor::make(
+            new ExecutionConfig(dryRun: false),
+            $store,
+            new ReplayHandlerRegistry(['api.dispatch' => new FakeReplayRecordHandler(shouldThrow: true)]),
+        );
+        $result = $executor->execute($executor->plan($store->openCursor()));
+
+        $this->assertFalse($result->success);
+        $this->assertSame(0, $result->processedCount);
+        $this->assertNotNull($result->error);
+    }
+
+    public function test_make_requires_injector_when_reinjection_is_enabled(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        OfflineReplayExecutor::make(
+            new ExecutionConfig(
+                dryRun: false,
+                reinjectionEnabled: true,
+                reinjectionArtifactAllowlist: ['api.dispatch'],
+            ),
+            $this->makeStore(),
+        );
+    }
+
+    public function test_reinjection_executes_only_allowlisted_executable_artifacts(): void
+    {
+        $store = $this->makeStore();
+        $store->write(FakeCapturedArtifact::apiDispatch());
+        $store->write(FakeCapturedArtifact::eventRaw());
+        $store->write(FakeCapturedArtifact::bgapiDispatch('job-1'));
+
+        $injector = new FakeReplayInjector();
+        $executor = OfflineReplayExecutor::make(
+            new ExecutionConfig(
+                dryRun: false,
+                reinjectionEnabled: true,
+                reinjectionArtifactAllowlist: ['api.dispatch'],
+            ),
+            $store,
+            null,
+            $injector,
+        );
+
+        $result = $executor->execute($executor->plan($store->openCursor()));
+
+        $this->assertTrue($result->success);
+        $this->assertSame([1], $injector->injectedSequences);
+        $this->assertSame('injected', $result->outcomes[0]['action']);
+        $this->assertSame('reinjection_rejected', $result->outcomes[1]['action']);
+        $this->assertSame('reinjection_rejected', $result->outcomes[2]['action']);
+    }
+
+    public function test_reinjection_dry_run_reports_candidate_without_injecting(): void
+    {
+        $store = $this->makeStore();
+        $store->write(FakeCapturedArtifact::apiDispatch());
+
+        $injector = new FakeReplayInjector();
+        $executor = OfflineReplayExecutor::make(
+            new ExecutionConfig(
+                dryRun: true,
+                reinjectionEnabled: true,
+                reinjectionArtifactAllowlist: ['api.dispatch'],
+            ),
+            $store,
+            null,
+            $injector,
+        );
+
+        $result = $executor->execute($executor->plan($store->openCursor()));
+
+        $this->assertSame([], $injector->injectedSequences);
+        $this->assertTrue($result->outcomes[0]['would_reinject']);
+        $this->assertSame('dry_run_skip', $result->outcomes[0]['action']);
     }
 
     public function test_plan_from_cursor_only_includes_unconsumed_records(): void

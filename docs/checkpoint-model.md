@@ -83,8 +83,11 @@ artifact stream. If a checkpoint points beyond the end of the artifact stream
 (e.g. the file was rotated or pruned), reads simply return an empty result — no
 records will match `appendSequence > lastConsumedSequence` since none exist.
 
-When retention pruning is implemented (Phase 8), pruning must never invalidate
-active checkpoints silently. That condition must fail explicitly and observably.
+Retention pruning is now coordinated through `CheckpointCompatibilityValidator`
+and `CheckpointAwarePruner`. Before pruning, active checkpoints are validated
+against the currently retained stream. If the stream already starts after the
+next sequence a checkpoint would need, retention fails explicitly via
+`RetentionException`.
 
 ## Key sanitisation
 

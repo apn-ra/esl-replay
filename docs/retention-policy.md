@@ -1,8 +1,7 @@
 # Retention Policy
 
-> **Status: Not yet implemented.**
-> Retention and pruning are planned for Phase 8 of the implementation roadmap.
-> This document describes the intended design and constraints.
+Retention and pruning are implemented conservatively for the filesystem adapter
+through `CheckpointAwarePruner`.
 
 ## Goal
 
@@ -10,7 +9,7 @@ Retention controls storage growth while preserving checkpoint and replay correct
 
 ## Retention requirements
 
-When implemented, retention must:
+Retention must:
 
 - Never invalidate active checkpoints silently
 - Preserve ordered read semantics across the remaining artifact stream
@@ -19,30 +18,32 @@ When implemented, retention must:
 
 ## Checkpoint compatibility rule
 
-If a checkpoint's `lastConsumedSequence` refers to a record that has been pruned,
-the reader will return an empty result (no records with higher sequence exist in
-the pruned stream). Processing appears to complete immediately with no error —
-which would silently skip data.
+If a checkpoint is already behind the retained stream start, the validator raises
+`RetentionException` before pruning continues. Pruning also refuses to remove
+records beyond the oldest active checkpoint cursor, so active checkpoints are not
+silently invalidated by this package.
 
-To prevent this, the retention layer must:
-1. Validate checkpoint compatibility before pruning
-2. Fail explicitly if pruning would invalidate an active checkpoint
-3. Provide an audit trail of what was pruned and when
-
-## Retention strategies (planned)
+## Retention strategies
 
 | Strategy | Description |
 |---|---|
-| Retention by age | Prune records older than N days |
-| Retention by size | Prune oldest records when stream exceeds N bytes |
-| Protected window | Preserve records within the last N sequences regardless of age |
+| Retention by age | Prune an eligible ordered prefix whose captured timestamp is older than a configured age |
+| Retention by size | Prune an eligible ordered prefix until the retained stream is at or below a byte target, when possible |
+| Protected window | Preserve the newest N records regardless of age or size pressure |
 
-## Implementation order
+## Current filesystem behavior
 
-Retention must not be introduced before:
+- Retention planning and pruning are explicit API calls only.
+- Pruning removes only an ordered prefix of the adapter stream.
+- The newest protected window is never pruned.
+- Active checkpoints cap the prune boundary at the oldest checkpoint cursor.
+- Malformed retained input causes retention planning/pruning to fail explicitly.
+- Size targets are best-effort under safety constraints; when checkpoints or the
+  protected window prevent further pruning, the plan reports that the size target
+  could not be fully satisfied.
+- Pruning rewrites the filesystem NDJSON stream via temp file plus atomic rename.
 
-1. Append/write/read/cursor semantics are stable
-2. Checkpoint load/save/resume is stable
-3. Cross-adapter ordering guarantees are documented
+## Scope boundary
 
-Retention is Phase 8 in the implementation plan.
+Retention does not change append-order semantics, checkpoint meaning, or live
+runtime recovery semantics. It coordinates durable stored-artifact pruning only.

@@ -8,6 +8,7 @@ use Apntalk\EslReplay\Artifact\CapturedArtifactEnvelope;
 use Apntalk\EslReplay\Contracts\ReplayArtifactStoreInterface;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
 use Apntalk\EslReplay\Exceptions\ArtifactPersistenceException;
+use Apntalk\EslReplay\Read\ReplayReadCriteria;
 use Apntalk\EslReplay\Serialization\ReplayArtifactSerializer;
 use Apntalk\EslReplay\Storage\ReplayRecordId;
 use Apntalk\EslReplay\Storage\StoredReplayRecord;
@@ -73,9 +74,13 @@ final class FilesystemReplayArtifactStore implements ReplayArtifactStoreInterfac
     /**
      * @return list<StoredReplayRecord>
      */
-    public function readFromCursor(ReplayReadCursor $cursor, int $limit = 100): array
+    public function readFromCursor(
+        ReplayReadCursor $cursor,
+        int $limit = 100,
+        ?ReplayReadCriteria $criteria = null,
+    ): array
     {
-        return $this->reader->readFromCursor($cursor, $limit);
+        return $this->reader->readFromCursor($cursor, $limit, $criteria);
     }
 
     public function openCursor(): ReplayReadCursor

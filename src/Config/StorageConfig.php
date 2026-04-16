@@ -10,6 +10,7 @@ namespace Apntalk\EslReplay\Config;
 final readonly class StorageConfig
 {
     public const ADAPTER_FILESYSTEM = 'filesystem';
+    public const ADAPTER_SQLITE = 'sqlite';
 
     /**
      * @param string $storagePath  Absolute path to the directory where artifacts are stored.

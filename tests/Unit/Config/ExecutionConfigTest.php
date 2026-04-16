@@ -33,11 +33,22 @@ final class ExecutionConfigTest extends TestCase
         $this->assertFalse($config->dryRun);
     }
 
-    public function test_reinjection_enabled_true_throws(): void
+    public function test_reinjection_enabled_requires_explicit_allowlist(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/reinjectionEnabled/');
+        $this->expectExceptionMessageMatches('/reinjectionArtifactAllowlist/');
         new ExecutionConfig(reinjectionEnabled: true);
+    }
+
+    public function test_reinjection_enabled_accepts_explicit_allowlist(): void
+    {
+        $config = new ExecutionConfig(
+            reinjectionEnabled: true,
+            reinjectionArtifactAllowlist: ['api.dispatch'],
+        );
+
+        $this->assertTrue($config->reinjectionEnabled);
+        $this->assertSame(['api.dispatch'], $config->reinjectionArtifactAllowlist);
     }
 
     public function test_rejects_batch_limit_below_one(): void

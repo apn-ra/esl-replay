@@ -54,9 +54,17 @@ $store = ReplayArtifactStore::make(new ReplayConfig(
 $id = $store->write($artifact);
 ```
 
+`StorageConfig` currently supports:
+- `filesystem` with a storage directory path
+- `sqlite` with a SQLite database file path
+
+PostgreSQL is not implemented in this release.
+
 ## Quick start: reading artifacts
 
 ```php
+use Apntalk\EslReplay\Read\ReplayReadCriteria;
+
 // Read from the beginning
 $cursor  = $store->openCursor();
 $records = $store->readFromCursor($cursor, limit: 100);
@@ -69,7 +77,25 @@ foreach ($records as $record) {
 
 // Look up a specific record by id
 $record = $store->readById($id);
+
+// Apply conservative bounded filters while preserving append order
+$criteria = new ReplayReadCriteria(
+    artifactName: 'event.raw',
+    sessionId: 'sess-001',
+);
+
+$filtered = $store->readFromCursor($store->openCursor(), limit: 100, criteria: $criteria);
 ```
+
+Bounded reader filtering currently supports inclusive capture-time windows plus
+exact matching on `artifactName`, `jobUuid`, `sessionId`, and
+`connectionGeneration`. This is not a general query engine; filtered reads still
+return records in append-sequence order within the adapter stream.
+
+On the filesystem path, ordinary reads intentionally skip malformed persisted
+lines so valid stored records remain readable after a partial or interrupted tail
+write. Retention/rewrite flows are stricter and fail explicitly if malformed
+retained input is discovered.
 
 ## Quick start: checkpoint and resume
 
@@ -104,6 +130,7 @@ foreach ($store->readFromCursor($cursor, 100) as $record) {
 ```php
 use Apntalk\EslReplay\Config\ExecutionConfig;
 use Apntalk\EslReplay\Execution\OfflineReplayExecutor;
+use Apntalk\EslReplay\Execution\ReplayHandlerRegistry;
 
 $executor = OfflineReplayExecutor::make(
     new ExecutionConfig(dryRun: true),
@@ -117,22 +144,35 @@ echo "Records to replay: {$plan->recordCount}" . PHP_EOL;
 // Execute: dry-run produces no side effects
 $result = $executor->execute($plan);
 echo "Skipped (dry-run): {$result->skippedCount}" . PHP_EOL;
+
+// Optional bounded handler dispatch in non-dry-run mode
+$executorWithHandlers = OfflineReplayExecutor::make(
+    new ExecutionConfig(dryRun: false),
+    $store,
+    new ReplayHandlerRegistry([
+        'api.dispatch' => $myApiDispatchHandler,
+    ]),
+);
 ```
 
 Offline replay operates only on stored artifacts. It does NOT require a live
-FreeSWITCH socket.
+FreeSWITCH socket. Handler dispatch is explicit and bounded by exact artifact
+name matching; unhandled records remain observational.
 
 ## Safety note on re-injection
 
-Controlled protocol re-injection is a future, optional, and higher-risk capability.
-It is not part of this release. Setting `ExecutionConfig::reinjectionEnabled = true`
-throws an `\InvalidArgumentException`.
+Controlled protocol re-injection is optional, disabled by default, and higher risk
+than ordinary offline replay. It now requires all of the following:
+- `ExecutionConfig::reinjectionEnabled = true`
+- an explicit `reinjectionArtifactAllowlist`
+- a caller-supplied `ReplayInjectorInterface`
 
-When re-injection is introduced in a future release, it will be:
-- explicitly configured and disabled by default
-- allowlist-based (only certain artifact types)
-- dry-run capable
-- clearly documented as a higher-risk operating mode
+Only allowlisted executable artifact types currently become reinjection candidates:
+- `api.dispatch`
+- `bgapi.dispatch`
+
+Observational artifacts remain non-injectable by default. Dry-run remains safe:
+it reports what would be reinjected without invoking the injector.
 
 ## Documentation
 

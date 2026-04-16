@@ -42,6 +42,7 @@ Records are stored and returned in **append-sequence order** within a single ada
 
 - `appendSequence` starts at 1 and increases strictly monotonically within a stream.
 - `readFromCursor()` returns records ordered by `appendSequence` ascending.
+- `readFromCursor(..., criteria: ...)` preserves that same append-sequence order for matching records.
 - Records with `appendSequence <= cursor.lastConsumedSequence` are never returned.
 
 ### Ordering boundary
@@ -61,6 +62,11 @@ The `byteOffsetHint` in the cursor is a performance optimisation for file-seek-b
 adapters. It is never load-bearing for correctness — an adapter must always apply
 the sequence filter even when using the hint.
 
+Bounded read criteria do not change what a cursor means. A saved cursor still
+represents the last consumed append sequence within the adapter stream. Applying
+criteria narrows which later records are returned; it does not create a second
+ordering model or a separate checkpoint concept.
+
 ### Restart safety
 
 On process restart:
@@ -79,3 +85,5 @@ deserializer, which reads only complete well-formed JSON lines.
   the storage clock.
 - Append sequence does not imply unique session identity — different sessions may
   have artifacts in the same stream with interleaved sequences.
+- Bounded filtering is not a general query engine; it narrows the ordered stream
+  using a conservative fixed set of exact-match and time-window predicates.

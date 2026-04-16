@@ -7,6 +7,7 @@ namespace Apntalk\EslReplay\Adapter\Filesystem;
 use Apntalk\EslReplay\Contracts\ReplayArtifactReaderInterface;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
 use Apntalk\EslReplay\Exceptions\SerializationException;
+use Apntalk\EslReplay\Read\ReplayReadCriteria;
 use Apntalk\EslReplay\Serialization\ReplayArtifactSerializer;
 use Apntalk\EslReplay\Storage\ReplayRecordId;
 use Apntalk\EslReplay\Storage\StoredReplayRecord;
@@ -89,7 +90,26 @@ final class NdjsonReplayReader implements ReplayArtifactReaderInterface
      *
      * @return list<StoredReplayRecord>
      */
-    public function readFromCursor(ReplayReadCursor $cursor, int $limit = 100): array
+    public function readFromCursor(
+        ReplayReadCursor $cursor,
+        int $limit = 100,
+        ?ReplayReadCriteria $criteria = null,
+    ): array {
+        if ($limit < 1) {
+            throw new \InvalidArgumentException('readFromCursor limit must be >= 1.');
+        }
+
+        return $this->readFilteredFromCursor($cursor, $limit, $criteria);
+    }
+
+    /**
+     * @return list<StoredReplayRecord>
+     */
+    private function readFilteredFromCursor(
+        ReplayReadCursor $cursor,
+        int $limit,
+        ?ReplayReadCriteria $criteria,
+    ): array
     {
         if (!file_exists($this->filePath)) {
             return [];
@@ -104,7 +124,16 @@ final class NdjsonReplayReader implements ReplayArtifactReaderInterface
             // Use byte-offset hint as a seek position to avoid scanning from start.
             // The sequence filter below guarantees correctness if the hint is stale.
             if ($cursor->byteOffsetHint !== null && $cursor->byteOffsetHint > 0) {
-                fseek($handle, $cursor->byteOffsetHint);
+                $fileSize = @filesize($this->filePath);
+                if (
+                    is_int($fileSize)
+                    && $cursor->byteOffsetHint < $fileSize
+                    && fseek($handle, $cursor->byteOffsetHint) === 0
+                ) {
+                    // Seek succeeded within the current file bounds.
+                } else {
+                    rewind($handle);
+                }
             }
 
             $records = [];
@@ -126,6 +155,10 @@ final class NdjsonReplayReader implements ReplayArtifactReaderInterface
                     continue;
                 }
 
+                if (!$this->matchesCriteria($record, $criteria)) {
+                    continue;
+                }
+
                 $records[] = $record;
             }
 
@@ -141,5 +174,41 @@ final class NdjsonReplayReader implements ReplayArtifactReaderInterface
     public function openCursor(): ReplayReadCursor
     {
         return ReplayReadCursor::start();
+    }
+
+    private function matchesCriteria(StoredReplayRecord $record, ?ReplayReadCriteria $criteria): bool
+    {
+        if ($criteria === null) {
+            return true;
+        }
+
+        if ($criteria->capturedFrom !== null && $record->captureTimestamp < $criteria->capturedFrom) {
+            return false;
+        }
+
+        if ($criteria->capturedUntil !== null && $record->captureTimestamp > $criteria->capturedUntil) {
+            return false;
+        }
+
+        if ($criteria->artifactName !== null && $record->artifactName !== $criteria->artifactName) {
+            return false;
+        }
+
+        if ($criteria->jobUuid !== null && $record->jobUuid !== $criteria->jobUuid) {
+            return false;
+        }
+
+        if ($criteria->sessionId !== null && $record->sessionId !== $criteria->sessionId) {
+            return false;
+        }
+
+        if (
+            $criteria->connectionGeneration !== null
+            && $record->connectionGeneration !== $criteria->connectionGeneration
+        ) {
+            return false;
+        }
+
+        return true;
     }
 }

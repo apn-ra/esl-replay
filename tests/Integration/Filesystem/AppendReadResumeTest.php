@@ -8,6 +8,7 @@ use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
 use Apntalk\EslReplay\Config\ReplayConfig;
 use Apntalk\EslReplay\Config\StorageConfig;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
+use Apntalk\EslReplay\Read\ReplayReadCriteria;
 use Apntalk\EslReplay\Serialization\ArtifactChecksum;
 use Apntalk\EslReplay\Storage\ReplayArtifactStore;
 use Apntalk\EslReplay\Tests\Fixtures\FakeCapturedArtifact;
@@ -223,5 +224,205 @@ final class AppendReadResumeTest extends TestCase
 
         $this->assertNotNull($record);
         $this->assertSame('42', $record->artifactVersion);
+    }
+
+    public function test_read_from_cursor_can_filter_by_artifact_name(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(FakeCapturedArtifact::apiDispatch());
+        $store->write(FakeCapturedArtifact::eventRaw());
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-002'));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(artifactName: 'api.dispatch'),
+        );
+
+        $this->assertCount(2, $records);
+        $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
+    public function test_read_from_cursor_can_filter_by_job_uuid(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(FakeCapturedArtifact::bgapiDispatch('job-a'));
+        $store->write(FakeCapturedArtifact::bgapiDispatch('job-b'));
+        $store->write(FakeCapturedArtifact::bgapiDispatch('job-a'));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(jobUuid: 'job-a'),
+        );
+
+        $this->assertCount(2, $records);
+        $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
+    public function test_read_from_cursor_can_filter_by_session_id(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-a'));
+        $store->write(FakeCapturedArtifact::eventRaw(sessionId: 'sess-b'));
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-a'));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(sessionId: 'sess-a'),
+        );
+
+        $this->assertCount(2, $records);
+        $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
+    public function test_read_from_cursor_can_filter_by_connection_generation(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(new FakeCapturedArtifact(connectionGeneration: 'gen-1'));
+        $store->write(new FakeCapturedArtifact(connectionGeneration: 'gen-2'));
+        $store->write(new FakeCapturedArtifact(connectionGeneration: 'gen-1'));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(connectionGeneration: 'gen-1'),
+        );
+
+        $this->assertCount(2, $records);
+        $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
+    public function test_read_from_cursor_can_filter_by_inclusive_time_window(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(new FakeCapturedArtifact(
+            captureTimestamp: new \DateTimeImmutable('2024-01-15T10:00:00+00:00'),
+        ));
+        $store->write(new FakeCapturedArtifact(
+            captureTimestamp: new \DateTimeImmutable('2024-01-15T10:30:00+00:00'),
+        ));
+        $store->write(new FakeCapturedArtifact(
+            captureTimestamp: new \DateTimeImmutable('2024-01-15T11:00:00+00:00'),
+        ));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(
+                capturedFrom: new \DateTimeImmutable('2024-01-15T10:15:00+00:00'),
+                capturedUntil: new \DateTimeImmutable('2024-01-15T11:00:00+00:00'),
+            ),
+        );
+
+        $this->assertCount(2, $records);
+        $this->assertSame([2, 3], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
+    public function test_read_from_cursor_can_apply_combined_bounded_filters(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(new FakeCapturedArtifact(
+            artifactName: 'event.raw',
+            captureTimestamp: new \DateTimeImmutable('2024-01-15T09:59:00+00:00'),
+            connectionGeneration: 'gen-1',
+            sessionId: 'sess-a',
+            jobUuid: 'job-a',
+        ));
+        $store->write(new FakeCapturedArtifact(
+            artifactName: 'event.raw',
+            captureTimestamp: new \DateTimeImmutable('2024-01-15T10:30:00+00:00'),
+            connectionGeneration: 'gen-1',
+            sessionId: 'sess-a',
+            jobUuid: 'job-a',
+        ));
+        $store->write(new FakeCapturedArtifact(
+            artifactName: 'event.raw',
+            captureTimestamp: new \DateTimeImmutable('2024-01-15T10:30:00+00:00'),
+            connectionGeneration: 'gen-2',
+            sessionId: 'sess-a',
+            jobUuid: 'job-a',
+        ));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(
+                capturedFrom: new \DateTimeImmutable('2024-01-15T10:00:00+00:00'),
+                capturedUntil: new \DateTimeImmutable('2024-01-15T10:45:00+00:00'),
+                artifactName: 'event.raw',
+                jobUuid: 'job-a',
+                sessionId: 'sess-a',
+                connectionGeneration: 'gen-1',
+            ),
+        );
+
+        $this->assertCount(1, $records);
+        $this->assertSame(2, $records[0]->appendSequence);
+    }
+
+    public function test_filtered_reads_preserve_append_order(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(FakeCapturedArtifact::eventRaw());
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-a'));
+        $store->write(FakeCapturedArtifact::bgapiDispatch());
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-b'));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(artifactName: 'api.dispatch'),
+        );
+
+        $this->assertSame([2, 4], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
+    public function test_filtered_reads_return_empty_array_when_no_records_match(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(FakeCapturedArtifact::apiDispatch());
+        $store->write(FakeCapturedArtifact::eventRaw());
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(jobUuid: 'missing-job'),
+        );
+
+        $this->assertSame([], $records);
+    }
+
+    public function test_filtered_chunked_reads_remain_deterministic_for_export_style_streaming(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-a'));
+        $store->write(FakeCapturedArtifact::eventRaw(sessionId: 'sess-b'));
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-c'));
+        $store->write(FakeCapturedArtifact::bgapiDispatch('job-z'));
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-d'));
+
+        $criteria = new ReplayReadCriteria(artifactName: 'api.dispatch');
+        $oneShot  = $store->readFromCursor($store->openCursor(), 10, $criteria);
+
+        $cursor   = $store->openCursor();
+        $chunked  = [];
+
+        while (true) {
+            $batch = $store->readFromCursor($cursor, 1, $criteria);
+            if ($batch === []) {
+                break;
+            }
+
+            $record   = $batch[0];
+            $chunked[] = $record;
+            $cursor    = $cursor->advance($record->appendSequence);
+        }
+
+        $this->assertSame(
+            array_map(static fn ($record) => $record->appendSequence, $oneShot),
+            array_map(static fn ($record) => $record->appendSequence, $chunked),
+        );
     }
 }
