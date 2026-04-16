@@ -174,6 +174,17 @@ Only allowlisted executable artifact types currently become reinjection candidat
 Observational artifacts remain non-injectable by default. Dry-run remains safe:
 it reports what would be reinjected without invoking the injector.
 
+## Opt-in live verification
+
+For RC validation, pre-release verification, or manual support checks against a
+real FreeSWITCH PBX, use the opt-in live harness documented in
+[docs/live-testing.md](docs/live-testing.md).
+
+It is intentionally separate from the default PHPUnit and CI flow. It reads
+live ESL credentials from `.env.live.local`, validates the replay package
+surface using live-derived artifacts, and must not expose secrets from that
+file.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -182,6 +193,7 @@ it reports what would be reinjected without invoking the injector.
 - [Artifact Identity and Ordering](docs/artifact-identity-and-ordering.md)
 - [Storage Model](docs/storage-model.md)
 - [Checkpoint Model](docs/checkpoint-model.md)
+- [Live Testing](docs/live-testing.md)
 - [Replay Execution](docs/replay-execution.md)
 - [Retention Policy](docs/retention-policy.md)
 - [Stability Policy](docs/stability-policy.md)

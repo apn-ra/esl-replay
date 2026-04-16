@@ -52,6 +52,7 @@ This RC does not include:
 ## RC notes
 
 - `v0.9.0-rc1` is recommended ahead of final `v0.9.0` because hostile-path behavior changed late in cycle.
+- The opt-in live harness at `tools/live/run_live_suite.php` may be used for RC and pre-release verification against a real FreeSWITCH PBX. It is support-only and remains outside the default PHPUnit/CI flow.
 - The three late-cycle fixes are:
   - stale filesystem `byteOffsetHint` past EOF no longer hides valid records
   - retention rewrite now fails explicitly on malformed retained input
