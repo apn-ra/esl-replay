@@ -1,0 +1,16 @@
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+    - vendor/phpstan/phpstan-phpunit/extension.neon
+
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # PHPUnit's assert*() methods are static but called as instance methods via
+        # TestCase inheritance — this is the established PHPUnit usage pattern.
+        -
+            identifier: staticMethod.dynamicCall
+            path: tests

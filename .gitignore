@@ -1,0 +1,17 @@
+/vendor/
+/coverage/
+.phpunit.result.cache
+.phpunit.cache/
+.php-cs-fixer.cache
+.psalm/
+.phpactor.json
+.idea/
+.codex
+.claude
+.env
+.env*.local
+*.log
+auth.json
+CLAUDE.md
+AGENTS.md
+docs/prompts/

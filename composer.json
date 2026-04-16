@@ -1,0 +1,31 @@
+{
+    "name": "apntalk/esl-replay",
+    "description": "Durable replay artifact platform for FreeSWITCH ESL runtime output",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^1.12",
+        "phpstan/phpstan-phpunit": "^1.4",
+        "phpstan/phpstan-strict-rules": "^1.6",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Apntalk\\EslReplay\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Apntalk\\EslReplay\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
