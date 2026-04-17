@@ -18,6 +18,9 @@ final class ReplayReadCriteriaTest extends TestCase
             capturedUntil: $until,
             artifactName: 'event.raw',
             jobUuid: 'job-123',
+            replaySessionId: 'replay-123',
+            pbxNodeSlug: 'pbx-a',
+            workerSessionId: 'worker-123',
             sessionId: 'sess-123',
             connectionGeneration: 'gen-7',
         );
@@ -26,6 +29,9 @@ final class ReplayReadCriteriaTest extends TestCase
         $this->assertSame($until, $criteria->capturedUntil);
         $this->assertSame('event.raw', $criteria->artifactName);
         $this->assertSame('job-123', $criteria->jobUuid);
+        $this->assertSame('replay-123', $criteria->replaySessionId);
+        $this->assertSame('pbx-a', $criteria->pbxNodeSlug);
+        $this->assertSame('worker-123', $criteria->workerSessionId);
         $this->assertSame('sess-123', $criteria->sessionId);
         $this->assertSame('gen-7', $criteria->connectionGeneration);
     }
@@ -34,6 +40,12 @@ final class ReplayReadCriteriaTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         new ReplayReadCriteria(artifactName: '   ');
+    }
+
+    public function test_it_rejects_empty_operator_identity_fields(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new ReplayReadCriteria(replaySessionId: '   ');
     }
 
     public function test_it_rejects_inverted_time_windows(): void

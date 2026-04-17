@@ -57,6 +57,7 @@ $id = $store->write($artifact);
 `StorageConfig` currently supports:
 - `filesystem` with a storage directory path
 - `sqlite` with a SQLite database file path
+- `database` as a compatibility alias for the current SQLite-backed adapter
 
 PostgreSQL is not implemented in this release.
 
@@ -81,16 +82,18 @@ $record = $store->readById($id);
 // Apply conservative bounded filters while preserving append order
 $criteria = new ReplayReadCriteria(
     artifactName: 'event.raw',
-    sessionId: 'sess-001',
+    replaySessionId: 'replay-session-001',
+    pbxNodeSlug: 'pbx-a',
 );
 
 $filtered = $store->readFromCursor($store->openCursor(), limit: 100, criteria: $criteria);
 ```
 
 Bounded reader filtering currently supports inclusive capture-time windows plus
-exact matching on `artifactName`, `jobUuid`, `sessionId`, and
-`connectionGeneration`. This is not a general query engine; filtered reads still
-return records in append-sequence order within the adapter stream.
+exact matching on `artifactName`, `jobUuid`, `replaySessionId`,
+`pbxNodeSlug`, `workerSessionId`, `sessionId`, and `connectionGeneration`.
+This is not a general query engine; filtered reads still return records in
+append-sequence order within the adapter stream.
 
 On the filesystem path, ordinary reads intentionally skip malformed persisted
 lines so valid stored records remain readable after a partial or interrupted tail
@@ -102,6 +105,9 @@ retained input is discovered.
 ```php
 use Apntalk\EslReplay\Checkpoint\ExecutionResumeState;
 use Apntalk\EslReplay\Checkpoint\FilesystemCheckpointStore;
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointCriteria;
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointReference;
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointRepository;
 use Apntalk\EslReplay\Checkpoint\ReplayCheckpointService;
 use Apntalk\EslReplay\Config\CheckpointConfig;
 
@@ -109,6 +115,7 @@ $checkpointStore = FilesystemCheckpointStore::make(
     new CheckpointConfig('/var/replay/checkpoints', 'my-processor')
 );
 $service = new ReplayCheckpointService($checkpointStore, 'my-processor');
+$repository = new ReplayCheckpointRepository($checkpointStore);
 
 // At startup: resolve where to start reading
 $state  = ExecutionResumeState::resolve($checkpointStore, 'my-processor');
@@ -120,6 +127,24 @@ foreach ($store->readFromCursor($cursor, 100) as $record) {
     $cursor = $cursor->advance($record->appendSequence);
     $service->save($cursor); // save progress after each record (or batch)
 }
+
+// Save a checkpoint with explicit operational identity anchors
+$repository->save(
+    new ReplayCheckpointReference(
+        key: 'worker-a',
+        replaySessionId: 'replay-session-001',
+        jobUuid: 'job-123',
+        pbxNodeSlug: 'pbx-a',
+        workerSessionId: 'worker-a',
+    ),
+    $cursor,
+);
+
+// Later: bounded checkpoint lookup for drain/resume workflows
+$matches = $repository->find(new ReplayCheckpointCriteria(
+    replaySessionId: 'replay-session-001',
+    workerSessionId: 'worker-a',
+));
 ```
 
 > **Important:** A checkpoint restores artifact-processing progress only. It does

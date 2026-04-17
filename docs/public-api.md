@@ -99,6 +99,12 @@ public function exists(string $key): bool;
 public function delete(string $key): void;
 ```
 
+### `ReplayCheckpointInspectorInterface`
+
+```php
+public function find(ReplayCheckpointCriteria $criteria): array;
+```
+
 ### `CheckpointCompatibilityValidator`
 
 ```php
@@ -132,7 +138,7 @@ public function inject(ReplayExecutionCandidate $candidate): InjectionResult;
 | Class | Description |
 |---|---|
 | `ReplayConfig` | Top-level config: composes StorageConfig, CheckpointConfig, ExecutionConfig |
-| `StorageConfig` | Storage path and adapter selection (`filesystem` or `sqlite`) |
+| `StorageConfig` | Storage path and adapter selection (`filesystem`, `sqlite`, or compatibility alias `database`) |
 | `CheckpointConfig` | Checkpoint storage path and key |
 | `ExecutionConfig` | Dry-run flag, batch limit |
 
@@ -145,6 +151,8 @@ public function inject(ReplayExecutionCandidate $candidate): InjectionResult;
 | `ReplayReadCursor` | Immutable cursor tracking last consumed append sequence |
 | `ReplayReadCriteria` | Immutable bounded filter criteria for append-ordered reads |
 | `ReplayCheckpoint` | Persisted artifact-processing progress checkpoint |
+| `ReplayCheckpointCriteria` | Immutable bounded checkpoint lookup criteria |
+| `ReplayCheckpointReference` | First-class checkpoint write reference with stable identity anchors |
 | `OfflineReplayPlan` | Planned offline replay over a set of stored records |
 | `OfflineReplayResult` | Result of an executed offline replay plan |
 | `ReplayHandlerRegistry` | Immutable exact-match artifact-name handler mapping |
@@ -164,14 +172,55 @@ new ReplayReadCriteria(
     capturedUntil: ?DateTimeImmutable,
     artifactName: ?string,
     jobUuid: ?string,
+    replaySessionId: ?string,
+    pbxNodeSlug: ?string,
+    workerSessionId: ?string,
     sessionId: ?string,
     connectionGeneration: ?string,
 );
 ```
 
 This criteria object is intentionally bounded. It supports inclusive capture-time
-windows and exact matching on a small set of stored record fields. It is not a
-general query DSL.
+windows and exact matching on a small set of stored record fields, including
+`replay_session_id` and selected runtime metadata fields. It is not a general
+query DSL.
+
+### `ReplayCheckpointRepository`
+
+```php
+$repository = new ReplayCheckpointRepository($checkpointStore);
+
+$repository->save(
+    new ReplayCheckpointReference(
+        key: 'worker-a',
+        replaySessionId: 'replay-session-001',
+        workerSessionId: 'worker-a',
+    ),
+    $cursor,
+);
+
+$matches = $repository->find(new ReplayCheckpointCriteria(
+    replaySessionId: 'replay-session-001',
+    workerSessionId: 'worker-a',
+));
+```
+
+This repository keeps checkpoint write semantics explicit while exposing a
+bounded operational lookup surface over stable identity anchors.
+
+### `ReplayCheckpointService` and `ExecutionResumeState`
+
+These helper types are also part of the supported checkpoint surface:
+
+```php
+$service = new ReplayCheckpointService($checkpointStore, 'my-processor');
+$service->save($cursor);
+
+$state = ExecutionResumeState::resolve($checkpointStore, 'my-processor');
+```
+
+They remain narrowly scoped to persisted-artifact progress save/load/resume and
+do not imply live-session recovery semantics.
 
 ## Stable retention surface
 
@@ -193,6 +242,10 @@ This retention surface is conservative and filesystem-backed in the current
 release. It prunes only an ordered prefix, validates checkpoint compatibility
 before pruning, never silently invalidates active checkpoints, and fails
 explicitly if malformed retained input is discovered during rewrite planning.
+
+It also supports bounded checkpoint-driven planning/pruning by resolving active
+checkpoints through `ReplayCheckpointInspectorInterface` plus
+`ReplayCheckpointCriteria`.
 
 ## Stable guarded re-injection surface
 
@@ -221,7 +274,7 @@ These are internal and may change:
 - `NdjsonReplayWriter` / `NdjsonReplayReader` / `FilesystemReplayArtifactStore`
 - `SqliteReplayArtifactStore`
 - `ReplayArtifactSerializer` / `ArtifactChecksum` / `StoredReplayRecordFactory`
-- `FilesystemCheckpointStore` / `ReplayCheckpointService` / `ExecutionResumeState`
+- `FilesystemCheckpointStore`
 - Any internal criteria-matching helpers or adapter indexing internals
 - Future retention worker orchestration beyond the current explicit pruner
 - Future transport-specific injector implementations beyond the public injector contract

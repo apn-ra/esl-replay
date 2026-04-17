@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Apntalk\EslReplay\Checkpoint;
 
 use Apntalk\EslReplay\Config\CheckpointConfig;
+use Apntalk\EslReplay\Contracts\ReplayCheckpointInspectorInterface;
 use Apntalk\EslReplay\Contracts\ReplayCheckpointStoreInterface;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
 use Apntalk\EslReplay\Exceptions\CheckpointException;
@@ -25,7 +26,7 @@ use Apntalk\EslReplay\Exceptions\CheckpointException;
  * Internal — not part of the stable public API.
  * Obtain via FilesystemCheckpointStore::make(CheckpointConfig $config).
  */
-final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface
+final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface, ReplayCheckpointInspectorInterface
 {
     private const JSON_FLAGS = JSON_THROW_ON_ERROR
         | JSON_UNESCAPED_SLASHES
@@ -106,7 +107,84 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface
     public function load(string $key): ?ReplayCheckpoint
     {
         $filePath = $this->checkpointPath($key);
+        return $this->loadCheckpointFile($filePath, $key);
+    }
 
+    public function exists(string $key): bool
+    {
+        return file_exists($this->checkpointPath($key));
+    }
+
+    /**
+     * Delete the checkpoint for the given key. No-op if it does not exist.
+     */
+    public function delete(string $key): void
+    {
+        $filePath = $this->checkpointPath($key);
+        if (file_exists($filePath)) {
+            @unlink($filePath);
+        }
+    }
+
+    /**
+     * @return list<ReplayCheckpoint>
+     */
+    public function find(ReplayCheckpointCriteria $criteria): array
+    {
+        $pattern = rtrim($this->storagePath, '/\\') . '/*' . self::FILE_SUFFIX;
+        $files = glob($pattern);
+        if ($files === false || $files === []) {
+            return [];
+        }
+
+        sort($files, SORT_STRING);
+
+        $matches = [];
+
+        foreach ($files as $file) {
+            $checkpoint = $this->loadCheckpointFile($file);
+            if ($checkpoint === null || !$this->matchesCriteria($checkpoint, $criteria)) {
+                continue;
+            }
+
+            $matches[] = $checkpoint;
+        }
+
+        usort($matches, static function (ReplayCheckpoint $left, ReplayCheckpoint $right): int {
+            $savedAtComparison = $right->savedAt <=> $left->savedAt;
+            if ($savedAtComparison !== 0) {
+                return $savedAtComparison;
+            }
+
+            return $left->key <=> $right->key;
+        });
+
+        return array_slice($matches, 0, $criteria->limit);
+    }
+
+    /**
+     * Resolve the filesystem path for a checkpoint key.
+     *
+     * Keys are sanitised to allow only safe filename characters.
+     * Sequences of unsafe characters are collapsed to a single underscore.
+     * Leading/trailing dots are stripped (prevents hidden-file / traversal tricks).
+     * If sanitisation produces an empty string the key is hashed with md5.
+     */
+    private function checkpointPath(string $key): string
+    {
+        // Allow: a-z A-Z 0-9 hyphen underscore dot
+        $safe = (string) preg_replace('/[^a-zA-Z0-9\-_.]++/', '_', $key);
+        $safe = trim($safe, '.');
+
+        if ($safe === '' || $safe === '_') {
+            $safe = md5($key);
+        }
+
+        return rtrim($this->storagePath, '/\\') . '/' . $safe . self::FILE_SUFFIX;
+    }
+
+    private function loadCheckpointFile(string $filePath, ?string $fallbackKey = null): ?ReplayCheckpoint
+    {
         if (!file_exists($filePath)) {
             return null;
         }
@@ -136,7 +214,7 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface
 
         try {
             return new ReplayCheckpoint(
-                key: (string) ($data['key'] ?? $key),
+                key: (string) ($data['key'] ?? $fallbackKey ?? basename($filePath, self::FILE_SUFFIX)),
                 cursor: new ReplayReadCursor(
                     lastConsumedSequence: (int) ($data['last_consumed_sequence'] ?? 0),
                     byteOffsetHint: isset($data['byte_offset_hint']) && is_int($data['byte_offset_hint'])
@@ -154,40 +232,33 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface
         }
     }
 
-    public function exists(string $key): bool
+    private function matchesCriteria(ReplayCheckpoint $checkpoint, ReplayCheckpointCriteria $criteria): bool
     {
-        return file_exists($this->checkpointPath($key));
-    }
-
-    /**
-     * Delete the checkpoint for the given key. No-op if it does not exist.
-     */
-    public function delete(string $key): void
-    {
-        $filePath = $this->checkpointPath($key);
-        if (file_exists($filePath)) {
-            @unlink($filePath);
-        }
-    }
-
-    /**
-     * Resolve the filesystem path for a checkpoint key.
-     *
-     * Keys are sanitised to allow only safe filename characters.
-     * Sequences of unsafe characters are collapsed to a single underscore.
-     * Leading/trailing dots are stripped (prevents hidden-file / traversal tricks).
-     * If sanitisation produces an empty string the key is hashed with md5.
-     */
-    private function checkpointPath(string $key): string
-    {
-        // Allow: a-z A-Z 0-9 hyphen underscore dot
-        $safe = (string) preg_replace('/[^a-zA-Z0-9\-_.]++/', '_', $key);
-        $safe = trim($safe, '.');
-
-        if ($safe === '' || $safe === '_') {
-            $safe = md5($key);
+        if (
+            $criteria->replaySessionId !== null
+            && ($checkpoint->metadata['replay_session_id'] ?? null) !== $criteria->replaySessionId
+        ) {
+            return false;
         }
 
-        return rtrim($this->storagePath, '/\\') . '/' . $safe . self::FILE_SUFFIX;
+        if ($criteria->jobUuid !== null && ($checkpoint->metadata['job_uuid'] ?? null) !== $criteria->jobUuid) {
+            return false;
+        }
+
+        if (
+            $criteria->pbxNodeSlug !== null
+            && ($checkpoint->metadata['pbx_node_slug'] ?? null) !== $criteria->pbxNodeSlug
+        ) {
+            return false;
+        }
+
+        if (
+            $criteria->workerSessionId !== null
+            && ($checkpoint->metadata['worker_session_id'] ?? null) !== $criteria->workerSessionId
+        ) {
+            return false;
+        }
+
+        return true;
     }
 }

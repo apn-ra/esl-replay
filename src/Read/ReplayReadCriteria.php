@@ -18,12 +18,18 @@ final readonly class ReplayReadCriteria
         public readonly ?\DateTimeImmutable $capturedUntil = null,
         public readonly ?string $artifactName = null,
         public readonly ?string $jobUuid = null,
+        public readonly ?string $replaySessionId = null,
+        public readonly ?string $pbxNodeSlug = null,
+        public readonly ?string $workerSessionId = null,
         public readonly ?string $sessionId = null,
         public readonly ?string $connectionGeneration = null,
     ) {
         foreach ([
             'artifactName' => $this->artifactName,
             'jobUuid' => $this->jobUuid,
+            'replaySessionId' => $this->replaySessionId,
+            'pbxNodeSlug' => $this->pbxNodeSlug,
+            'workerSessionId' => $this->workerSessionId,
             'sessionId' => $this->sessionId,
             'connectionGeneration' => $this->connectionGeneration,
         ] as $field => $value) {

@@ -103,6 +103,16 @@ The current release includes:
 
 SQLite persists the same stored record fields, orders reads by `append_sequence`,
 and supports the same bounded reader criteria as the filesystem adapter.
+Current exact-match operator fields include:
+- `jobUuid`
+- `replaySessionId` (derived from `correlation_ids.replay_session_id`, with
+  fallback to `runtime_flags.replay_session_id` when present)
+- `pbxNodeSlug` (derived from `runtime_flags.pbx_node_slug`)
+- `workerSessionId` (derived from `runtime_flags.worker_session_id`)
+
+For SQLite, these operator fields are also persisted into additive derived
+columns so bounded inspection does not require downstream scan-and-filter logic.
+`database` is a compatibility alias for this same SQLite-backed adapter.
 
 PostgreSQL remains future work. Cross-adapter ordering and identity rules are
 documented in `docs/artifact-identity-and-ordering.md`.

@@ -7,6 +7,7 @@ namespace Apntalk\EslReplay\Adapter\Filesystem;
 use Apntalk\EslReplay\Contracts\ReplayArtifactReaderInterface;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
 use Apntalk\EslReplay\Exceptions\SerializationException;
+use Apntalk\EslReplay\Read\ReplayInspectionFields;
 use Apntalk\EslReplay\Read\ReplayReadCriteria;
 use Apntalk\EslReplay\Serialization\ReplayArtifactSerializer;
 use Apntalk\EslReplay\Storage\ReplayRecordId;
@@ -195,6 +196,27 @@ final class NdjsonReplayReader implements ReplayArtifactReaderInterface
         }
 
         if ($criteria->jobUuid !== null && $record->jobUuid !== $criteria->jobUuid) {
+            return false;
+        }
+
+        if (
+            $criteria->replaySessionId !== null
+            && ReplayInspectionFields::replaySessionId($record) !== $criteria->replaySessionId
+        ) {
+            return false;
+        }
+
+        if (
+            $criteria->pbxNodeSlug !== null
+            && ReplayInspectionFields::pbxNodeSlug($record) !== $criteria->pbxNodeSlug
+        ) {
+            return false;
+        }
+
+        if (
+            $criteria->workerSessionId !== null
+            && ReplayInspectionFields::workerSessionId($record) !== $criteria->workerSessionId
+        ) {
             return false;
         }
 

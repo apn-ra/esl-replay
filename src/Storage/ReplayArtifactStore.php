@@ -37,13 +37,14 @@ final class ReplayArtifactStore
             StorageConfig::ADAPTER_FILESYSTEM => new FilesystemReplayArtifactStore(
                 $config->storage->storagePath,
             ),
+            StorageConfig::ADAPTER_DATABASE,
             StorageConfig::ADAPTER_SQLITE => new SqliteReplayArtifactStore(
                 $config->storage->storagePath,
             ),
             default => throw new \InvalidArgumentException(
                 "ReplayArtifactStore: unknown storage adapter '{$config->storage->adapter}'. "
                 . "Supported adapters: '" . StorageConfig::ADAPTER_FILESYSTEM . "', '"
-                . StorageConfig::ADAPTER_SQLITE . "'.",
+                . StorageConfig::ADAPTER_SQLITE . "', '" . StorageConfig::ADAPTER_DATABASE . "'.",
             ),
         };
     }

@@ -10,6 +10,7 @@ use Apntalk\EslReplay\Contracts\ReplayArtifactStoreInterface;
 use Apntalk\EslReplay\Exceptions\SerializationException;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
 use Apntalk\EslReplay\Exceptions\ArtifactPersistenceException;
+use Apntalk\EslReplay\Read\ReplayInspectionFields;
 use Apntalk\EslReplay\Read\ReplayReadCriteria;
 use Apntalk\EslReplay\Storage\ReplayRecordId;
 use Apntalk\EslReplay\Storage\StoredReplayRecord;
@@ -42,6 +43,7 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
         $this->pdo->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
 
         $this->createSchema();
+        $this->ensureDerivedQueryColumns();
         $this->recordFactory = new StoredReplayRecordFactory($this->recoverLastSequence());
     }
 
@@ -58,11 +60,13 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
             <<<'SQL'
             INSERT INTO replay_records (
                 id, artifact_version, artifact_name, capture_timestamp, stored_at,
-                append_sequence, connection_generation, session_id, job_uuid, event_name,
+                append_sequence, connection_generation, session_id, job_uuid,
+                replay_session_id, pbx_node_slug, worker_session_id, event_name,
                 capture_path, correlation_ids, runtime_flags, payload, checksum, tags
             ) VALUES (
                 :id, :artifact_version, :artifact_name, :capture_timestamp, :stored_at,
-                :append_sequence, :connection_generation, :session_id, :job_uuid, :event_name,
+                :append_sequence, :connection_generation, :session_id, :job_uuid,
+                :replay_session_id, :pbx_node_slug, :worker_session_id, :event_name,
                 :capture_path, :correlation_ids, :runtime_flags, :payload, :checksum, :tags
             )
             SQL
@@ -113,6 +117,9 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
         foreach ([
             'artifact_name' => $criteria?->artifactName,
             'job_uuid' => $criteria?->jobUuid,
+            'replay_session_id' => $criteria?->replaySessionId,
+            'pbx_node_slug' => $criteria?->pbxNodeSlug,
+            'worker_session_id' => $criteria?->workerSessionId,
             'session_id' => $criteria?->sessionId,
             'connection_generation' => $criteria?->connectionGeneration,
         ] as $column => $value) {
@@ -164,6 +171,9 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
                 connection_generation TEXT NULL,
                 session_id TEXT NULL,
                 job_uuid TEXT NULL,
+                replay_session_id TEXT NULL,
+                pbx_node_slug TEXT NULL,
+                worker_session_id TEXT NULL,
                 event_name TEXT NULL,
                 capture_path TEXT NULL,
                 correlation_ids TEXT NOT NULL,
@@ -180,12 +190,48 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
                 ON replay_records (artifact_name);
             CREATE INDEX IF NOT EXISTS replay_records_job_uuid_idx
                 ON replay_records (job_uuid);
+            CREATE INDEX IF NOT EXISTS replay_records_replay_session_id_idx
+                ON replay_records (replay_session_id);
+            CREATE INDEX IF NOT EXISTS replay_records_pbx_node_slug_idx
+                ON replay_records (pbx_node_slug);
+            CREATE INDEX IF NOT EXISTS replay_records_worker_session_id_idx
+                ON replay_records (worker_session_id);
             CREATE INDEX IF NOT EXISTS replay_records_session_id_idx
                 ON replay_records (session_id);
             CREATE INDEX IF NOT EXISTS replay_records_connection_generation_idx
                 ON replay_records (connection_generation);
             SQL
         );
+    }
+
+    private function ensureDerivedQueryColumns(): void
+    {
+        $existingColumns = $this->existingColumns();
+
+        foreach ([
+            'replay_session_id',
+            'pbx_node_slug',
+            'worker_session_id',
+        ] as $column) {
+            if (in_array($column, $existingColumns, true)) {
+                continue;
+            }
+
+            $this->pdo->exec(sprintf('ALTER TABLE replay_records ADD COLUMN %s TEXT NULL', $column));
+        }
+
+        $this->pdo->exec(
+            <<<'SQL'
+            CREATE INDEX IF NOT EXISTS replay_records_replay_session_id_idx
+                ON replay_records (replay_session_id);
+            CREATE INDEX IF NOT EXISTS replay_records_pbx_node_slug_idx
+                ON replay_records (pbx_node_slug);
+            CREATE INDEX IF NOT EXISTS replay_records_worker_session_id_idx
+                ON replay_records (worker_session_id);
+            SQL
+        );
+
+        $this->backfillDerivedQueryColumns();
     }
 
     private function recoverLastSequence(): int
@@ -211,6 +257,9 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
             'connection_generation' => $record->connectionGeneration,
             'session_id' => $record->sessionId,
             'job_uuid' => $record->jobUuid,
+            'replay_session_id' => ReplayInspectionFields::replaySessionId($record),
+            'pbx_node_slug' => ReplayInspectionFields::pbxNodeSlug($record),
+            'worker_session_id' => ReplayInspectionFields::workerSessionId($record),
             'event_name' => $record->eventName,
             'capture_path' => $record->capturePath,
             'correlation_ids' => json_encode($record->correlationIds, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -261,5 +310,86 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
         /** @var array<string, mixed> $decoded */
         $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         return $decoded;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function existingColumns(): array
+    {
+        $result = $this->pdo->query('PRAGMA table_info(replay_records)');
+        if ($result === false) {
+            return [];
+        }
+
+        $rows = $result->fetchAll();
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn (mixed $row): ?string => is_array($row) && isset($row['name']) && is_string($row['name'])
+                ? $row['name']
+                : null,
+            $rows,
+        )));
+    }
+
+    private function backfillDerivedQueryColumns(): void
+    {
+        $result = $this->pdo->query(
+            <<<'SQL'
+            SELECT id, correlation_ids, runtime_flags, replay_session_id, pbx_node_slug, worker_session_id
+            FROM replay_records
+            WHERE replay_session_id IS NULL OR pbx_node_slug IS NULL OR worker_session_id IS NULL
+            SQL
+        );
+        if ($result === false) {
+            return;
+        }
+
+        $rows = $result->fetchAll();
+
+        if (!is_array($rows) || $rows === []) {
+            return;
+        }
+
+        $update = $this->pdo->prepare(
+            <<<'SQL'
+            UPDATE replay_records
+            SET replay_session_id = :replay_session_id,
+                pbx_node_slug = :pbx_node_slug,
+                worker_session_id = :worker_session_id
+            WHERE id = :id
+            SQL
+        );
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $correlationIds = $this->decodePossiblyEmptyJsonObject((string) ($row['correlation_ids'] ?? '{}'));
+            $runtimeFlags = $this->decodePossiblyEmptyJsonObject((string) ($row['runtime_flags'] ?? '{}'));
+
+            $update->execute([
+                'id' => (string) $row['id'],
+                'replay_session_id' => ReplayInspectionFields::replaySessionIdFromArrays($correlationIds, $runtimeFlags),
+                'pbx_node_slug' => ReplayInspectionFields::pbxNodeSlugFromRuntimeFlags($runtimeFlags),
+                'worker_session_id' => ReplayInspectionFields::workerSessionIdFromRuntimeFlags($runtimeFlags),
+            ]);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodePossiblyEmptyJsonObject(string $json): array
+    {
+        if (trim($json) === '') {
+            return [];
+        }
+
+        return $this->decodeJsonObject($json);
     }
 }

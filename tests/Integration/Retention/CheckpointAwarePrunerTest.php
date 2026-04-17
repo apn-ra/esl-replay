@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Apntalk\EslReplay\Tests\Integration\Retention;
 
 use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
+use Apntalk\EslReplay\Checkpoint\FilesystemCheckpointStore;
 use Apntalk\EslReplay\Checkpoint\ReplayCheckpoint;
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointCriteria;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
 use Apntalk\EslReplay\Exceptions\RetentionException;
 use Apntalk\EslReplay\Retention\CheckpointAwarePruner;
@@ -125,5 +127,47 @@ final class CheckpointAwarePrunerTest extends TestCase
 
         $this->assertFalse($plan->sizeTargetSatisfied);
         $this->assertSame([1], $plan->prunedSequences);
+    }
+
+    public function test_plan_for_checkpoint_query_resolves_active_checkpoints_from_store_metadata(): void
+    {
+        $store = $this->makeStore();
+        for ($i = 0; $i < 3; $i++) {
+            $store->write(FakeCapturedArtifact::apiDispatch("sess-{$i}"));
+        }
+
+        $checkpointStoreDir = $this->tmpDir . '/checkpoints';
+        mkdir($checkpointStoreDir, 0755, true);
+        $checkpointStore = new FilesystemCheckpointStore($checkpointStoreDir);
+        $checkpointStore->save(new ReplayCheckpoint(
+            key: 'worker-a',
+            cursor: ReplayReadCursor::start()->advance(2),
+            savedAt: new \DateTimeImmutable('2024-01-03T00:00:00+00:00'),
+            metadata: [
+                'replay_session_id' => 'replay-a',
+                'worker_session_id' => 'worker-a',
+            ],
+        ));
+
+        $plan = (new CheckpointAwarePruner($this->tmpDir))->planForCheckpointQuery(
+            $checkpointStore,
+            new ReplayCheckpointCriteria(
+                replaySessionId: 'replay-a',
+                workerSessionId: 'worker-a',
+            ),
+            new PrunePolicy(maxStreamBytes: 1, protectedRecordCount: 1),
+        );
+
+        $this->assertSame([1, 2], $plan->prunedSequences);
+        $this->assertSame(2, $plan->checkpointFloorSequence);
+    }
+
+    public function test_plan_reports_truthful_empty_result_for_empty_stream(): void
+    {
+        $plan = (new CheckpointAwarePruner($this->tmpDir))->plan([], new PrunePolicy(maxStreamBytes: 1));
+
+        $this->assertSame(0, $plan->prunedCount);
+        $this->assertSame(0, $plan->retainedCount);
+        $this->assertTrue($plan->sizeTargetSatisfied);
     }
 }

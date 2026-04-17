@@ -11,10 +11,12 @@ final readonly class StorageConfig
 {
     public const ADAPTER_FILESYSTEM = 'filesystem';
     public const ADAPTER_SQLITE = 'sqlite';
+    public const ADAPTER_DATABASE = 'database';
 
     /**
      * @param string $storagePath  Absolute path to the directory where artifacts are stored.
-     * @param string $adapter      Storage adapter identifier. Currently only 'filesystem' is supported.
+     * @param string $adapter      Storage adapter identifier. Supported: 'filesystem', 'sqlite',
+     *                             and the compatibility alias 'database' (normalized to 'sqlite').
      */
     public function __construct(
         public readonly string $storagePath,
@@ -24,7 +26,7 @@ final readonly class StorageConfig
             throw new \InvalidArgumentException('StorageConfig: storagePath must not be empty.');
         }
 
-        if (trim($adapter) === '') {
+        if (trim($this->adapter) === '') {
             throw new \InvalidArgumentException('StorageConfig: adapter must not be empty.');
         }
     }

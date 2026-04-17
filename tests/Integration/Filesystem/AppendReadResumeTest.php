@@ -294,6 +294,52 @@ final class AppendReadResumeTest extends TestCase
         $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
     }
 
+    public function test_read_from_cursor_can_filter_by_replay_session_id(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(new FakeCapturedArtifact(correlationIds: ['replay_session_id' => 'replay-a']));
+        $store->write(new FakeCapturedArtifact(correlationIds: ['replay_session_id' => 'replay-b']));
+        $store->write(new FakeCapturedArtifact(correlationIds: ['replay_session_id' => 'replay-a']));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(replaySessionId: 'replay-a'),
+        );
+
+        $this->assertCount(2, $records);
+        $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
+    public function test_read_from_cursor_can_filter_by_runtime_metadata_fields(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(new FakeCapturedArtifact(runtimeFlags: [
+            'pbx_node_slug' => 'pbx-a',
+            'worker_session_id' => 'worker-a',
+        ]));
+        $store->write(new FakeCapturedArtifact(runtimeFlags: [
+            'pbx_node_slug' => 'pbx-b',
+            'worker_session_id' => 'worker-b',
+        ]));
+        $store->write(new FakeCapturedArtifact(runtimeFlags: [
+            'pbx_node_slug' => 'pbx-a',
+            'worker_session_id' => 'worker-a',
+        ]));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(
+                pbxNodeSlug: 'pbx-a',
+                workerSessionId: 'worker-a',
+            ),
+        );
+
+        $this->assertCount(2, $records);
+        $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
     public function test_read_from_cursor_can_filter_by_inclusive_time_window(): void
     {
         $store = new FilesystemReplayArtifactStore($this->tmpDir);

@@ -7,6 +7,8 @@ namespace Apntalk\EslReplay\Retention;
 use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
 use Apntalk\EslReplay\Checkpoint\CheckpointCompatibilityValidator;
 use Apntalk\EslReplay\Checkpoint\ReplayCheckpoint;
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointCriteria;
+use Apntalk\EslReplay\Contracts\ReplayCheckpointInspectorInterface;
 use Apntalk\EslReplay\Exceptions\RetentionException;
 use Apntalk\EslReplay\Exceptions\SerializationException;
 use Apntalk\EslReplay\Serialization\ReplayArtifactSerializer;
@@ -170,6 +172,24 @@ final class CheckpointAwarePruner
         $this->rewriteRetainedEntries($retainedEntries);
 
         return new RetentionResult(plan: $plan, changed: true, prunedAt: $prunedAt);
+    }
+
+    public function planForCheckpointQuery(
+        ReplayCheckpointInspectorInterface $checkpointInspector,
+        ReplayCheckpointCriteria $criteria,
+        PrunePolicy $policy,
+        ?\DateTimeImmutable $now = null,
+    ): RetentionPlan {
+        return $this->plan($checkpointInspector->find($criteria), $policy, $now);
+    }
+
+    public function pruneForCheckpointQuery(
+        ReplayCheckpointInspectorInterface $checkpointInspector,
+        ReplayCheckpointCriteria $criteria,
+        PrunePolicy $policy,
+        ?\DateTimeImmutable $now = null,
+    ): RetentionResult {
+        return $this->prune($checkpointInspector->find($criteria), $policy, $now);
     }
 
     /**

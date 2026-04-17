@@ -50,6 +50,8 @@ final class ReplayArtifactStoreContractTest extends TestCase
             captureTimestamp: new \DateTimeImmutable('2024-01-15T10:00:00+00:00'),
             sessionId: 'sess-a',
             connectionGeneration: 'gen-1',
+            correlationIds: ['replay_session_id' => 'replay-a'],
+            runtimeFlags: ['pbx_node_slug' => 'pbx-a', 'worker_session_id' => 'worker-a'],
         ));
         $store->write(new FakeCapturedArtifact(
             artifactName: 'event.raw',
@@ -57,12 +59,16 @@ final class ReplayArtifactStoreContractTest extends TestCase
             sessionId: 'sess-b',
             connectionGeneration: 'gen-2',
             jobUuid: 'job-b',
+            correlationIds: ['replay_session_id' => 'replay-b'],
+            runtimeFlags: ['pbx_node_slug' => 'pbx-b', 'worker_session_id' => 'worker-b'],
         ));
         $store->write(new FakeCapturedArtifact(
             artifactName: 'api.dispatch',
             captureTimestamp: new \DateTimeImmutable('2024-01-15T11:00:00+00:00'),
             sessionId: 'sess-a',
             connectionGeneration: 'gen-1',
+            correlationIds: ['replay_session_id' => 'replay-a'],
+            runtimeFlags: ['pbx_node_slug' => 'pbx-a', 'worker_session_id' => 'worker-a'],
         ));
 
         $records = $store->readFromCursor(
@@ -74,6 +80,9 @@ final class ReplayArtifactStoreContractTest extends TestCase
                 artifactName: 'api.dispatch',
                 sessionId: 'sess-a',
                 connectionGeneration: 'gen-1',
+                replaySessionId: 'replay-a',
+                pbxNodeSlug: 'pbx-a',
+                workerSessionId: 'worker-a',
             ),
         );
 
@@ -93,6 +102,39 @@ final class ReplayArtifactStoreContractTest extends TestCase
 
         $this->assertNotNull($record);
         $this->assertSame(3, $record->appendSequence);
+    }
+
+    #[DataProvider('storeProvider')]
+    public function test_operator_identity_filters_match_across_adapters(string $adapter): void
+    {
+        $store = $this->makeStore($adapter);
+        $store->write(new FakeCapturedArtifact(
+            artifactName: 'event.raw',
+            correlationIds: ['replay_session_id' => 'replay-1'],
+            runtimeFlags: ['pbx_node_slug' => 'pbx-a', 'worker_session_id' => 'worker-1'],
+        ));
+        $store->write(new FakeCapturedArtifact(
+            artifactName: 'event.raw',
+            correlationIds: ['replay_session_id' => 'replay-2'],
+            runtimeFlags: ['pbx_node_slug' => 'pbx-b', 'worker_session_id' => 'worker-2'],
+        ));
+        $store->write(new FakeCapturedArtifact(
+            artifactName: 'event.raw',
+            correlationIds: ['replay_session_id' => 'replay-1'],
+            runtimeFlags: ['pbx_node_slug' => 'pbx-a', 'worker_session_id' => 'worker-1'],
+        ));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(
+                replaySessionId: 'replay-1',
+                pbxNodeSlug: 'pbx-a',
+                workerSessionId: 'worker-1',
+            ),
+        );
+
+        $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
     }
 
     private function makeStore(string $adapter): ReplayArtifactStoreInterface

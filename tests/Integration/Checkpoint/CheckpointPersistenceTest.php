@@ -7,6 +7,9 @@ namespace Apntalk\EslReplay\Tests\Integration\Checkpoint;
 use Apntalk\EslReplay\Checkpoint\ExecutionResumeState;
 use Apntalk\EslReplay\Checkpoint\FilesystemCheckpointStore;
 use Apntalk\EslReplay\Checkpoint\ReplayCheckpoint;
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointCriteria;
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointReference;
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointRepository;
 use Apntalk\EslReplay\Checkpoint\ReplayCheckpointService;
 use Apntalk\EslReplay\Config\CheckpointConfig;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
@@ -154,6 +157,41 @@ final class CheckpointPersistenceTest extends TestCase
         $this->assertTrue($store->exists('test-key'));
     }
 
+    public function test_find_returns_matching_checkpoints_by_operational_identity(): void
+    {
+        $store = new FilesystemCheckpointStore($this->tmpDir);
+        $store->save(new ReplayCheckpoint(
+            key: 'worker-a',
+            cursor: ReplayReadCursor::start()->advance(10),
+            savedAt: new \DateTimeImmutable('2024-06-01T12:00:00+00:00'),
+            metadata: [
+                'replay_session_id' => 'replay-a',
+                'job_uuid' => 'job-a',
+                'pbx_node_slug' => 'pbx-a',
+                'worker_session_id' => 'worker-a',
+            ],
+        ));
+        $store->save(new ReplayCheckpoint(
+            key: 'worker-b',
+            cursor: ReplayReadCursor::start()->advance(20),
+            savedAt: new \DateTimeImmutable('2024-06-01T13:00:00+00:00'),
+            metadata: [
+                'replay_session_id' => 'replay-b',
+                'job_uuid' => 'job-b',
+                'pbx_node_slug' => 'pbx-b',
+                'worker_session_id' => 'worker-b',
+            ],
+        ));
+
+        $matches = $store->find(new ReplayCheckpointCriteria(
+            replaySessionId: 'replay-a',
+            pbxNodeSlug: 'pbx-a',
+        ));
+
+        $this->assertCount(1, $matches);
+        $this->assertSame('worker-a', $matches[0]->key);
+    }
+
     // -------------------------------------------------------------------------
     // ReplayCheckpointService tests
     // -------------------------------------------------------------------------
@@ -188,6 +226,37 @@ final class CheckpointPersistenceTest extends TestCase
         $store   = new FilesystemCheckpointStore($this->tmpDir);
         $service = new ReplayCheckpointService($store, 'missing');
         $this->assertNull($service->load());
+    }
+
+    public function test_repository_save_load_and_find_use_first_class_reference(): void
+    {
+        $store = new FilesystemCheckpointStore($this->tmpDir);
+        $repository = new ReplayCheckpointRepository($store);
+
+        $saved = $repository->save(
+            new ReplayCheckpointReference(
+                key: 'worker-a',
+                replaySessionId: 'replay-a',
+                jobUuid: 'job-a',
+                pbxNodeSlug: 'pbx-a',
+                workerSessionId: 'worker-a',
+                metadata: ['attempt' => 2],
+            ),
+            ReplayReadCursor::start()->advance(15),
+        );
+
+        $loaded = $repository->load('worker-a');
+        $matches = $repository->find(new ReplayCheckpointCriteria(
+            replaySessionId: 'replay-a',
+            workerSessionId: 'worker-a',
+        ));
+
+        $this->assertSame('worker-a', $saved->key);
+        $this->assertNotNull($loaded);
+        $this->assertSame(15, $loaded->cursor->lastConsumedSequence);
+        $this->assertSame('replay-a', $loaded->metadata['replay_session_id']);
+        $this->assertCount(1, $matches);
+        $this->assertSame('worker-a', $matches[0]->key);
     }
 
     // -------------------------------------------------------------------------

@@ -42,6 +42,9 @@ silently invalidated by this package.
   protected window prevent further pruning, the plan reports that the size target
   could not be fully satisfied.
 - Pruning rewrites the filesystem NDJSON stream via temp file plus atomic rename.
+- `CheckpointAwarePruner` can also resolve active checkpoints from a bounded
+  checkpoint query before planning or pruning, so operators do not need to
+  enumerate checkpoint arrays manually.
 
 ## Scope boundary
 

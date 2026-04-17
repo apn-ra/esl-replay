@@ -94,4 +94,47 @@ final class SqliteReplayArtifactStoreTest extends TestCase
         $this->assertNotNull($record);
         $this->assertInstanceOf(SqliteReplayArtifactStore::class, $store);
     }
+
+    public function test_sqlite_can_filter_by_operator_identity_fields(): void
+    {
+        $store = $this->makeStore();
+        $store->write(new FakeCapturedArtifact(
+            correlationIds: ['replay_session_id' => 'replay-a'],
+            runtimeFlags: ['pbx_node_slug' => 'pbx-a', 'worker_session_id' => 'worker-a'],
+        ));
+        $store->write(new FakeCapturedArtifact(
+            correlationIds: ['replay_session_id' => 'replay-b'],
+            runtimeFlags: ['pbx_node_slug' => 'pbx-b', 'worker_session_id' => 'worker-b'],
+        ));
+        $store->write(new FakeCapturedArtifact(
+            correlationIds: ['replay_session_id' => 'replay-a'],
+            runtimeFlags: ['pbx_node_slug' => 'pbx-a', 'worker_session_id' => 'worker-a'],
+        ));
+
+        $records = $store->readFromCursor(
+            $store->openCursor(),
+            10,
+            new ReplayReadCriteria(
+                replaySessionId: 'replay-a',
+                pbxNodeSlug: 'pbx-a',
+                workerSessionId: 'worker-a',
+            ),
+        );
+
+        $this->assertCount(2, $records);
+        $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
+    public function test_entry_point_make_accepts_database_alias_for_sqlite(): void
+    {
+        $store = ReplayArtifactStore::make(new ReplayConfig(
+            storage: new StorageConfig($this->dbPath, StorageConfig::ADAPTER_DATABASE),
+        ));
+
+        $id = $store->write(FakeCapturedArtifact::apiDispatch());
+        $record = $store->readById($id);
+
+        $this->assertNotNull($record);
+        $this->assertInstanceOf(SqliteReplayArtifactStore::class, $store);
+    }
 }

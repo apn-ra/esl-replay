@@ -47,6 +47,23 @@ $service = new ReplayCheckpointService($store, 'my-processor');
 $service->save($cursor);  // saves current position
 ```
 
+### Saving with operational identity anchors
+
+```php
+$repository = new ReplayCheckpointRepository($store);
+
+$repository->save(
+    new ReplayCheckpointReference(
+        key: 'worker-a',
+        replaySessionId: 'replay-session-001',
+        jobUuid: 'job-123',
+        pbxNodeSlug: 'pbx-a',
+        workerSessionId: 'worker-a',
+    ),
+    $cursor,
+);
+```
+
 ### Resolving startup position
 
 ```php
@@ -64,6 +81,19 @@ if ($state->isResuming) {
 ```php
 $service->clear();  // removes the checkpoint — next run starts fresh
 ```
+
+### Bounded operational checkpoint lookup
+
+```php
+$matches = $repository->find(new ReplayCheckpointCriteria(
+    replaySessionId: 'replay-session-001',
+    workerSessionId: 'worker-a',
+));
+```
+
+Checkpoint lookup remains intentionally narrow: exact-match filters only over
+`replay_session_id`, `job_uuid`, `pbx_node_slug`, and `worker_session_id`.
+It is not a general checkpoint search API.
 
 ## Filesystem checkpoint persistence
 
