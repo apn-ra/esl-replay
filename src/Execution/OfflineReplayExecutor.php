@@ -29,11 +29,12 @@ use Apntalk\EslReplay\Cursor\ReplayReadCursor;
  * to inspect what would be replayed before committing.
  *
  * Live mode (dryRun=false): execute() processes records observationally and
- * records outcomes. Handler dispatch is reserved for a future implementation
- * phase; in this release live mode records outcomes without side-effects.
+ * records outcomes. If a handler registry is supplied, matching records are
+ * dispatched through exact artifact-name handler lookup.
  *
- * Re-injection is NOT available in this release. ExecutionConfig::reinjectionEnabled
- * must remain false and is enforced at construction time.
+ * Guarded re-injection is available only when explicitly enabled with an
+ * allowlist and a caller-supplied injector. It remains separate from ordinary
+ * offline replay and is disabled by default.
  */
 final class OfflineReplayExecutor implements OfflineReplayExecutorInterface
 {
@@ -92,9 +93,9 @@ final class OfflineReplayExecutor implements OfflineReplayExecutorInterface
      * Execute a previously built plan.
      *
      * When plan->isDryRun is true, all records are skipped with action 'dry_run_skip'.
-     * When plan->isDryRun is false, records are processed observationally.
-     *
-     * Handler dispatch is reserved for a future implementation phase.
+     * When plan->isDryRun is false, records are processed observationally,
+     * dispatched to exact-match handlers, or passed through guarded re-injection
+     * when that higher-risk mode is explicitly enabled.
      */
     public function execute(OfflineReplayPlan $plan): OfflineReplayResult
     {
@@ -143,10 +144,8 @@ final class OfflineReplayExecutor implements OfflineReplayExecutorInterface
     }
 
     /**
-     * Live/observational mode: record outcomes without dispatching handlers.
-     *
-     * Handler dispatch is a future implementation concern (Phase 7 of the plan).
-     * In this release, all records are marked as 'observed'.
+     * Live/observational mode: record outcomes, dispatching exact-match handlers
+     * when a registry is configured. Unhandled records remain observational.
      */
     private function executeObservational(OfflineReplayPlan $plan): OfflineReplayResult
     {

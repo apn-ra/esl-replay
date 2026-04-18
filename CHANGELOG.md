@@ -10,7 +10,8 @@ Release-candidate cut for the current audited replay platform surface.
 
 Highlights:
 - deterministic artifact storage and append-ordered reads
-- bounded reader filtering by time window, artifact name, job UUID, session id, and connection generation
+- bounded reader filtering by time window, artifact name, job UUID, replay session,
+  PBX node, worker session, session id, and connection generation
 - checkpointed persisted-artifact progress recovery
 - handler-driven offline replay
 - filesystem-backed retention coordination

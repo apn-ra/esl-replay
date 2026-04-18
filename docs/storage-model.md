@@ -31,6 +31,9 @@ filtering during the same ordered scan. Supported filters are:
 - inclusive capture-time window (`capturedFrom` / `capturedUntil`)
 - exact `artifactName`
 - exact `jobUuid`
+- exact `replaySessionId`
+- exact `pbxNodeSlug`
+- exact `workerSessionId`
 - exact `sessionId`
 - exact `connectionGeneration`
 

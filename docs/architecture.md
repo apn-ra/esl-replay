@@ -72,21 +72,31 @@ ReplayArtifactStore::make()        ← public stable entry point
 
 OfflineReplayExecutor::make()      ← public stable entry point
   └── OfflineReplayExecutor        ← plan() + execute()
+        ├── ReplayHandlerRegistry  ← exact artifact-name handler dispatch
+        └── guarded re-injection   ← explicit allowlist + caller-supplied injector
 
 FilesystemCheckpointStore          ← checkpoint persistence
   └── used via ReplayCheckpointService (higher-level API)
   └── used via ExecutionResumeState (startup resolution)
+
+CheckpointAwarePruner              ← explicit filesystem retention coordination
+  └── uses CheckpointCompatibilityValidator before pruning
 ```
 
 ## Storage adapter order
 
-The implementation plan targets adapters in this order:
+The implementation plan targeted adapters in this order:
 
-1. **Filesystem NDJSON** (current) — append-only, inspectable, restart-safe
-2. SQLite (future)
+1. **Filesystem NDJSON** — append-only, inspectable, restart-safe
+2. SQLite
 3. PostgreSQL (future)
 
-All adapters implement the same `ReplayArtifactStoreInterface` contract.
+Filesystem NDJSON and SQLite are implemented in the current release. Both
+implement the same `ReplayArtifactStoreInterface` contract and are covered by
+shared contract tests for append-order, cursor, restart, and bounded-filter
+semantics.
+
+PostgreSQL remains future work and is not part of the current stable surface.
 
 ## Recovery semantics
 

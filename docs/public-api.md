@@ -140,7 +140,7 @@ public function inject(ReplayExecutionCandidate $candidate): InjectionResult;
 | `ReplayConfig` | Top-level config: composes StorageConfig, CheckpointConfig, ExecutionConfig |
 | `StorageConfig` | Storage path and adapter selection (`filesystem`, `sqlite`, or compatibility alias `database`) |
 | `CheckpointConfig` | Checkpoint storage path and key |
-| `ExecutionConfig` | Dry-run flag, batch limit |
+| `ExecutionConfig` | Dry-run flag, guarded re-injection allowlist, batch limit |
 
 ## Stable DTOs
 

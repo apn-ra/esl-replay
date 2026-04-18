@@ -9,6 +9,7 @@ The following are stable and will not change in a breaking way within a minor ve
 - `ReplayArtifactWriterInterface`
 - `ReplayArtifactReaderInterface`
 - `ReplayCheckpointStoreInterface`
+- `ReplayCheckpointInspectorInterface`
 - `OfflineReplayExecutorInterface`
 - `ReplayRecordHandlerInterface`
 - `ReplayInjectorInterface`
@@ -25,6 +26,8 @@ The following are stable and will not change in a breaking way within a minor ve
 - `ReplayReadCursor`
 - `ReplayReadCriteria`
 - `ReplayCheckpoint`
+- `ReplayCheckpointCriteria`
+- `ReplayCheckpointReference`
 - `OfflineReplayPlan`
 - `OfflineReplayResult`
 - `ReplayHandlerRegistry`
@@ -41,6 +44,9 @@ The following are stable and will not change in a breaking way within a minor ve
 - `OfflineReplayExecutor::make(ExecutionConfig $config, ReplayArtifactReaderInterface $reader): OfflineReplayExecutorInterface`
 - `CheckpointAwarePruner`
 - `CheckpointCompatibilityValidator`
+- `ReplayCheckpointRepository`
+- `ReplayCheckpointService`
+- `ExecutionResumeState`
 
 **Input contract:**
 - `CapturedArtifactEnvelope`
@@ -52,7 +58,7 @@ These are internal and may change without notice:
 - `NdjsonReplayWriter` / `NdjsonReplayReader` / `FilesystemReplayArtifactStore`
 - `SqliteReplayArtifactStore`
 - `ReplayArtifactSerializer` / `ArtifactChecksum` / `StoredReplayRecordFactory`
-- `FilesystemCheckpointStore` / `ReplayCheckpointService` / `ExecutionResumeState`
+- `FilesystemCheckpointStore`
 - Any future query DSL internals
 - Any future retention worker internals
 - Any future re-injection machinery

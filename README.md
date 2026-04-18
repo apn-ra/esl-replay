@@ -155,7 +155,10 @@ $matches = $repository->find(new ReplayCheckpointCriteria(
 ```php
 use Apntalk\EslReplay\Config\ExecutionConfig;
 use Apntalk\EslReplay\Execution\OfflineReplayExecutor;
+use Apntalk\EslReplay\Execution\ReplayExecutionCandidate;
 use Apntalk\EslReplay\Execution\ReplayHandlerRegistry;
+use Apntalk\EslReplay\Execution\InjectionResult;
+use Apntalk\EslReplay\Contracts\ReplayInjectorInterface;
 
 $executor = OfflineReplayExecutor::make(
     new ExecutionConfig(dryRun: true),
@@ -178,6 +181,26 @@ $executorWithHandlers = OfflineReplayExecutor::make(
         'api.dispatch' => $myApiDispatchHandler,
     ]),
 );
+
+// Optional guarded re-injection remains explicit and caller-supplied.
+$injector = new class implements ReplayInjectorInterface {
+    public function inject(ReplayExecutionCandidate $candidate): InjectionResult
+    {
+        // Dispatch through caller-owned transport here.
+        return new InjectionResult('injected');
+    }
+};
+
+$reinjectionExecutor = OfflineReplayExecutor::make(
+    new ExecutionConfig(
+        dryRun: true,
+        reinjectionEnabled: true,
+        reinjectionArtifactAllowlist: ['api.dispatch'],
+    ),
+    $store,
+    null,
+    $injector,
+);
 ```
 
 Offline replay operates only on stored artifacts. It does NOT require a live
@@ -198,6 +221,45 @@ Only allowlisted executable artifact types currently become reinjection candidat
 
 Observational artifacts remain non-injectable by default. Dry-run remains safe:
 it reports what would be reinjected without invoking the injector.
+
+## Quick start: filesystem retention
+
+```php
+use Apntalk\EslReplay\Checkpoint\FilesystemCheckpointStore;
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointCriteria;
+use Apntalk\EslReplay\Config\CheckpointConfig;
+use Apntalk\EslReplay\Retention\CheckpointAwarePruner;
+use Apntalk\EslReplay\Retention\PrunePolicy;
+
+$checkpointStore = FilesystemCheckpointStore::make(
+    new CheckpointConfig('/var/replay/checkpoints', 'my-processor')
+);
+
+$pruner = new CheckpointAwarePruner('/var/replay/artifacts');
+$policy = new PrunePolicy(
+    maxRecordAge: new DateInterval('P7D'),
+    maxStreamBytes: 10_000_000,
+    protectedRecordCount: 500,
+);
+
+// Plan first: inspect what would be pruned.
+$plan = $pruner->planForCheckpointQuery(
+    $checkpointStore,
+    new ReplayCheckpointCriteria(limit: 100),
+    $policy,
+);
+
+// Apply explicitly after reviewing the plan.
+$result = $pruner->pruneForCheckpointQuery(
+    $checkpointStore,
+    new ReplayCheckpointCriteria(limit: 100),
+    $policy,
+);
+```
+
+Retention is filesystem-backed in this release. It prunes only an ordered prefix,
+validates active checkpoint compatibility before pruning, preserves protected
+record windows, and fails explicitly on malformed retained input.
 
 ## Opt-in live verification
 
