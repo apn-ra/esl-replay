@@ -100,6 +100,18 @@ public function exists(string $key): bool;
 public function delete(string $key): void;
 ```
 
+### `FilesystemCheckpointStore`
+
+`FilesystemCheckpointStore` is the supported concrete checkpoint store in the
+current release. It implements both `ReplayCheckpointStoreInterface` and
+`ReplayCheckpointInspectorInterface`.
+
+```php
+$checkpointStore = FilesystemCheckpointStore::make(
+    new CheckpointConfig('/var/replay/checkpoints', 'my-processor')
+);
+```
+
 ### `ReplayCheckpointInspectorInterface`
 
 ```php
@@ -227,15 +239,18 @@ $matches = $repository->find(new ReplayCheckpointCriteria(
 This repository keeps checkpoint write semantics explicit while exposing a
 bounded operational lookup surface over stable identity anchors.
 
-### `ReplayCheckpointService` and `ExecutionResumeState`
+### `ReplayCheckpointService`, `ExecutionResumeState`, and `ReplayCheckpointRepository`
 
-These helper types are also part of the supported checkpoint surface:
+These helpers are also part of the supported checkpoint surface built around
+`FilesystemCheckpointStore` plus the stable checkpoint contracts:
 
 ```php
 $service = new ReplayCheckpointService($checkpointStore, 'my-processor');
 $service->save($cursor);
 
 $state = ExecutionResumeState::resolve($checkpointStore, 'my-processor');
+
+$repository = new ReplayCheckpointRepository($checkpointStore);
 ```
 
 They remain narrowly scoped to persisted-artifact progress save/load/resume and
@@ -312,7 +327,6 @@ These are internal and may change:
 - `NdjsonReplayWriter` / `NdjsonReplayReader` / `FilesystemReplayArtifactStore`
 - `SqliteReplayArtifactStore`
 - `ReplayArtifactSerializer` / `StoredReplayRecordFactory`
-- `FilesystemCheckpointStore`
 - Any internal criteria-matching helpers or adapter indexing internals
 - Future retention worker orchestration beyond the current explicit pruner
 - Future transport-specific injector implementations beyond the public injector contract

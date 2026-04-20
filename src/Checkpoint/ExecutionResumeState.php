@@ -19,7 +19,7 @@ use Apntalk\EslReplay\Exceptions\CheckpointException;
  * only. It does NOT restore a live FreeSWITCH socket, ESL session, or any
  * runtime continuity from apntalk/esl-react.
  *
- * Internal — not part of the stable public API.
+ * Supported helper for checkpoint-backed startup resolution.
  */
 final readonly class ExecutionResumeState
 {

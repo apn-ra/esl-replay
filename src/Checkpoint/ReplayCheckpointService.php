@@ -17,7 +17,7 @@ use Apntalk\EslReplay\Exceptions\CheckpointException;
  * IMPORTANT: Saving a checkpoint records progress over persisted artifact data.
  * It does NOT restore a live FreeSWITCH socket or ESL session.
  *
- * Internal — not part of the stable public API.
+ * Supported helper on top of the stable checkpoint store contract.
  */
 final class ReplayCheckpointService
 {

@@ -77,9 +77,12 @@ Multiple readers may inspect the file while one package writer owns it.
 
 This guarantee applies to writers that use this package. External processes
 that bypass `FilesystemReplayArtifactStore` must not write `artifacts.ndjson`.
-For broader concurrent write scenarios, use a database adapter. The current
-release includes a SQLite adapter with database-level concurrency control that
-preserves the same replay contract semantics as the filesystem adapter.
+For this release, SQLite preserves the same append-order and bounded-read
+semantics for a single active writer epoch, but it does not claim broader
+concurrent-write coordination across multiple long-lived writer instances. If a
+second stale SQLite writer instance writes after another writer has already
+advanced the stream, the write fails explicitly and the caller must reopen
+against the current database state.
 
 ### File layout
 

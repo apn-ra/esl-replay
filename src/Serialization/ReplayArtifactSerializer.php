@@ -144,11 +144,11 @@ final class ReplayArtifactSerializer
                 capturePath: isset($data['capture_path']) && is_string($data['capture_path'])
                     ? $data['capture_path']
                     : null,
-                correlationIds: is_array($data['correlation_ids'] ?? null) ? $data['correlation_ids'] : [],
-                runtimeFlags: is_array($data['runtime_flags'] ?? null) ? $data['runtime_flags'] : [],
-                payload: is_array($data['payload'] ?? null) ? $data['payload'] : [],
+                correlationIds: $this->requireArray($data, 'correlation_ids'),
+                runtimeFlags: $this->requireArray($data, 'runtime_flags'),
+                payload: $this->requireArray($data, 'payload'),
                 checksum: $this->requireString($data, 'checksum'),
-                tags: is_array($data['tags'] ?? null) ? $data['tags'] : [],
+                tags: $this->requireArray($data, 'tags'),
             );
         } catch (\InvalidArgumentException|\Exception $e) {
             throw new SerializationException(
@@ -178,5 +178,21 @@ final class ReplayArtifactSerializer
             throw new SerializationException("Missing or non-integer field: {$key}");
         }
         return $data[$key];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function requireArray(array $data, string $key): array
+    {
+        if (!array_key_exists($key, $data) || !is_array($data[$key])) {
+            throw new SerializationException("Missing or non-object field: {$key}");
+        }
+
+        /** @var array<string, mixed> $value */
+        $value = $data[$key];
+
+        return $value;
     }
 }

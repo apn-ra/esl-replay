@@ -6,6 +6,7 @@ namespace Apntalk\EslReplay\Adapter\Filesystem;
 
 use Apntalk\EslReplay\Contracts\ReplayArtifactReaderInterface;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
+use Apntalk\EslReplay\Exceptions\ArtifactPersistenceException;
 use Apntalk\EslReplay\Exceptions\SerializationException;
 use Apntalk\EslReplay\Read\ReplayInspectionFields;
 use Apntalk\EslReplay\Read\ReplayReadCriteria;
@@ -54,7 +55,9 @@ final class NdjsonReplayReader implements ReplayArtifactReaderInterface
 
         $handle = @fopen($this->filePath, 'r');
         if ($handle === false) {
-            return null;
+            throw new ArtifactPersistenceException(
+                "NdjsonReplayReader: failed to open artifact file for readById: {$this->filePath}",
+            );
         }
 
         try {
@@ -118,7 +121,9 @@ final class NdjsonReplayReader implements ReplayArtifactReaderInterface
 
         $handle = @fopen($this->filePath, 'r');
         if ($handle === false) {
-            return [];
+            throw new ArtifactPersistenceException(
+                "NdjsonReplayReader: failed to open artifact file for ordered read: {$this->filePath}",
+            );
         }
 
         try {

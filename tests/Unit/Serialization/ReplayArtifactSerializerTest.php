@@ -163,4 +163,37 @@ final class ReplayArtifactSerializerTest extends TestCase
         $reconstituted = $this->serializer->deserialize($this->serializer->serialize($record));
         $this->assertSame(['env' => 'test', 'source' => 'unit'], $reconstituted->tags);
     }
+
+    public function test_deserialize_throws_when_correlation_ids_is_not_an_object(): void
+    {
+        $this->assertWrongTypeObjectFieldFails('correlation_ids');
+    }
+
+    public function test_deserialize_throws_when_runtime_flags_is_not_an_object(): void
+    {
+        $this->assertWrongTypeObjectFieldFails('runtime_flags');
+    }
+
+    public function test_deserialize_throws_when_payload_is_not_an_object(): void
+    {
+        $this->assertWrongTypeObjectFieldFails('payload');
+    }
+
+    public function test_deserialize_throws_when_tags_is_not_an_object(): void
+    {
+        $this->assertWrongTypeObjectFieldFails('tags');
+    }
+
+    private function assertWrongTypeObjectFieldFails(string $field): void
+    {
+        $json = $this->serializer->serialize($this->makeRecord());
+        /** @var array<string, mixed> $data */
+        $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        $data[$field] = 'wrong-type';
+
+        $this->expectException(SerializationException::class);
+        $this->expectExceptionMessage("Missing or non-object field: {$field}");
+
+        $this->serializer->deserialize(json_encode($data, JSON_THROW_ON_ERROR));
+    }
 }

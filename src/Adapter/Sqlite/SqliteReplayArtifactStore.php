@@ -57,23 +57,30 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
     {
         $record = $this->recordFactory->fromEnvelope($artifact);
 
-        $statement = $this->pdo->prepare(
-            <<<'SQL'
-            INSERT INTO replay_records (
-                id, artifact_version, artifact_name, capture_timestamp, stored_at,
-                append_sequence, connection_generation, session_id, job_uuid,
-                replay_session_id, pbx_node_slug, worker_session_id, event_name,
-                capture_path, correlation_ids, runtime_flags, payload, checksum, tags
-            ) VALUES (
-                :id, :artifact_version, :artifact_name, :capture_timestamp, :stored_at,
-                :append_sequence, :connection_generation, :session_id, :job_uuid,
-                :replay_session_id, :pbx_node_slug, :worker_session_id, :event_name,
-                :capture_path, :correlation_ids, :runtime_flags, :payload, :checksum, :tags
-            )
-            SQL
-        );
+        try {
+            $statement = $this->pdo->prepare(
+                <<<'SQL'
+                INSERT INTO replay_records (
+                    id, artifact_version, artifact_name, capture_timestamp, stored_at,
+                    append_sequence, connection_generation, session_id, job_uuid,
+                    replay_session_id, pbx_node_slug, worker_session_id, event_name,
+                    capture_path, correlation_ids, runtime_flags, payload, checksum, tags
+                ) VALUES (
+                    :id, :artifact_version, :artifact_name, :capture_timestamp, :stored_at,
+                    :append_sequence, :connection_generation, :session_id, :job_uuid,
+                    :replay_session_id, :pbx_node_slug, :worker_session_id, :event_name,
+                    :capture_path, :correlation_ids, :runtime_flags, :payload, :checksum, :tags
+                )
+                SQL
+            );
 
-        $statement->execute($this->recordToRow($record));
+            $statement->execute($this->recordToRow($record));
+        } catch (\PDOException $e) {
+            throw new ArtifactPersistenceException(
+                "SqliteReplayArtifactStore: failed to persist record at append_sequence {$record->appendSequence}: {$e->getMessage()}",
+                previous: $e,
+            );
+        }
 
         return $record->id;
     }

@@ -63,6 +63,11 @@ The same `storagePath` constructor argument is interpreted by adapter: a
 filesystem store expects a directory, while the SQLite-backed adapters expect a
 database file path.
 
+For this release, SQLite preserves the same read/order contract as the
+filesystem adapter for a single active writer epoch. If a second long-lived
+SQLite store instance writes against the same database without reopening after
+another writer has advanced the stream, the write fails explicitly.
+
 PostgreSQL is not implemented in this release.
 
 ## Quick start: reading artifacts
@@ -153,6 +158,10 @@ $matches = $repository->find(new ReplayCheckpointCriteria(
 
 > **Important:** A checkpoint restores artifact-processing progress only. It does
 > NOT restore a live FreeSWITCH socket, ESL session, or any runtime continuity.
+
+`FilesystemCheckpointStore`, `ReplayCheckpointService`,
+`ExecutionResumeState`, and `ReplayCheckpointRepository` are the supported
+checkpoint path in this release.
 
 ## Quick start: offline replay
 

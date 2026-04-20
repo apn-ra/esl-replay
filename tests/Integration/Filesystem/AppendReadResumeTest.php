@@ -191,6 +191,54 @@ final class AppendReadResumeTest extends TestCase
         }
     }
 
+    public function test_read_by_id_fails_explicitly_when_existing_artifact_file_is_unreadable(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $id = $store->write(FakeCapturedArtifact::apiDispatch());
+
+        $artifactPath = $this->tmpDir . '/artifacts.ndjson';
+        chmod($artifactPath, 0000);
+        clearstatcache(true, $artifactPath);
+
+        if (is_readable($artifactPath)) {
+            chmod($artifactPath, 0644);
+            $this->markTestSkipped('Current filesystem permits reading chmod 0000 files.');
+        }
+
+        $this->expectException(ArtifactPersistenceException::class);
+        $this->expectExceptionMessage('failed to open artifact file for readById');
+
+        try {
+            $store->readById($id);
+        } finally {
+            chmod($artifactPath, 0644);
+        }
+    }
+
+    public function test_read_from_cursor_fails_explicitly_when_existing_artifact_file_is_unreadable(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(FakeCapturedArtifact::apiDispatch());
+
+        $artifactPath = $this->tmpDir . '/artifacts.ndjson';
+        chmod($artifactPath, 0000);
+        clearstatcache(true, $artifactPath);
+
+        if (is_readable($artifactPath)) {
+            chmod($artifactPath, 0644);
+            $this->markTestSkipped('Current filesystem permits reading chmod 0000 files.');
+        }
+
+        $this->expectException(ArtifactPersistenceException::class);
+        $this->expectExceptionMessage('failed to open artifact file for ordered read');
+
+        try {
+            $store->readFromCursor($store->openCursor(), 10);
+        } finally {
+            chmod($artifactPath, 0644);
+        }
+    }
+
     public function test_restart_can_read_all_previously_written_records(): void
     {
         // Write 3 records in first instance

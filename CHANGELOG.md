@@ -37,10 +37,17 @@ checksum, and public-contract hardening work.
   via `artifacts.ndjson.lock` and fails closed when that lock is held
 - Filesystem sequence recovery now fails explicitly when an existing
   `artifacts.ndjson` cannot be opened, avoiding accidental sequence reuse
+- Filesystem read paths now fail explicitly when an existing `artifacts.ndjson`
+  cannot be opened, rather than returning empty/not-found results
+- NDJSON deserialization now fails explicitly when object-typed stored fields
+  (`correlation_ids`, `runtime_flags`, `payload`, `tags`) carry wrong-type values
 - Filesystem write-capable stores now enforce single package writer ownership
   via `artifacts.ndjson.writer.lock`
 - Published `OperatorIdentityKeys` as the stable cross-package contract for
   `replay_session_id`, `pbx_node_slug`, and `worker_session_id`
+- SQLite documentation now reflects the currently supported single-writer-epoch
+  model, and stale overlapping writer instances fail explicitly through package
+  persistence exceptions
 - PHPUnit suite configuration and Composer/archive metadata were cleaned up for
   release packaging
 

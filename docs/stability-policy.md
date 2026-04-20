@@ -42,6 +42,7 @@ The following are stable and will not change in a breaking way within a minor ve
 **Entry points:**
 - `ReplayArtifactStore::make(ReplayConfig $config): ReplayArtifactStoreInterface`
 - `OfflineReplayExecutor::make(ExecutionConfig $config, ReplayArtifactReaderInterface $reader): OfflineReplayExecutorInterface`
+- `FilesystemCheckpointStore::make(CheckpointConfig $config): FilesystemCheckpointStore`
 - `CheckpointAwarePruner`
 - `CheckpointCompatibilityValidator`
 - `ReplayCheckpointRepository`
@@ -62,7 +63,6 @@ These are internal and may change without notice:
 - `NdjsonReplayWriter` / `NdjsonReplayReader` / `FilesystemReplayArtifactStore`
 - `SqliteReplayArtifactStore`
 - `ReplayArtifactSerializer` / `StoredReplayRecordFactory`
-- `FilesystemCheckpointStore`
 - Any future query DSL internals
 - Any future retention worker internals
 - Any future re-injection machinery

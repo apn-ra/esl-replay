@@ -9,6 +9,7 @@ This RC covers:
 - fail-closed empty-checkpoint prune query behavior
 - collision-safe filesystem checkpoint filenames with legacy lookup compatibility
 - filesystem vs. SQLite `storagePath` documentation semantics
+- SQLite writer-model truth narrowed to the currently supported single-writer-epoch posture
 - filesystem retention/write coordination through `artifacts.ndjson.lock`
 - checksum semantics clarified as consumer-invoked verification
 - stable `OperatorIdentityKeys` cross-package constants
@@ -37,6 +38,7 @@ This RC does not include:
   - [x] retention/rewrite flows are stricter and fail on malformed retained input
   - [x] filesystem retention/write coordination uses `artifacts.ndjson.lock`
   - [x] filesystem writer ownership uses `artifacts.ndjson.writer.lock`
+  - [x] SQLite writer semantics are documented conservatively for this RC
   - [x] PostgreSQL remains future work
 - [x] `docs/checkpoint-model.md` keeps recovery defined as persisted-artifact progress recovery only
 - [x] `docs/retention-policy.md` reflects filesystem-backed retention only

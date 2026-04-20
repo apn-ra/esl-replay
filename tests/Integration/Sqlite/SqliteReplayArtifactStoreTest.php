@@ -7,6 +7,7 @@ namespace Apntalk\EslReplay\Tests\Integration\Sqlite;
 use Apntalk\EslReplay\Adapter\Sqlite\SqliteReplayArtifactStore;
 use Apntalk\EslReplay\Config\ReplayConfig;
 use Apntalk\EslReplay\Config\StorageConfig;
+use Apntalk\EslReplay\Exceptions\ArtifactPersistenceException;
 use Apntalk\EslReplay\Read\ReplayReadCriteria;
 use Apntalk\EslReplay\Storage\ReplayArtifactStore;
 use Apntalk\EslReplay\Tests\Fixtures\FakeCapturedArtifact;
@@ -136,5 +137,18 @@ final class SqliteReplayArtifactStoreTest extends TestCase
 
         $this->assertNotNull($record);
         $this->assertInstanceOf(SqliteReplayArtifactStore::class, $store);
+    }
+
+    public function test_sqlite_writer_model_requires_reopen_between_writer_epochs(): void
+    {
+        $firstWriter = $this->makeStore();
+        $secondWriter = $this->makeStore();
+
+        $firstWriter->write(FakeCapturedArtifact::apiDispatch());
+
+        $this->expectException(ArtifactPersistenceException::class);
+        $this->expectExceptionMessage('failed to persist record at append_sequence 1');
+
+        $secondWriter->write(FakeCapturedArtifact::eventRaw());
     }
 }

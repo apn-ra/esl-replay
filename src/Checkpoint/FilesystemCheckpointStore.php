@@ -24,7 +24,7 @@ use Apntalk\EslReplay\Exceptions\CheckpointException;
  * IMPORTANT: Checkpoints restore artifact-processing progress only.
  * They do NOT restore live FreeSWITCH sockets or ESL session state.
  *
- * Internal — not part of the stable public API.
+ * Supported concrete checkpoint store for the current package surface.
  * Obtain via FilesystemCheckpointStore::make(CheckpointConfig $config).
  */
 final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface, ReplayCheckpointInspectorInterface
