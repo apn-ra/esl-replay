@@ -41,6 +41,9 @@ The following are stable and will not change in a breaking way within a minor ve
 - `RecoveryMetadataKeys`
 - `ReconstructionWindow`
 - `RecoveryManifest`
+- `RecoveryGenerationObservation`
+- `ReconstructionVerdict`
+- `ReconstructionIssue`
 - `RuntimeContinuitySnapshot`
 - `OperationRecoveryRecord`
 - `TerminalPublicationEvidenceRecord`

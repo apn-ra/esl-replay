@@ -15,7 +15,6 @@ This package does not:
 - perform reconnect supervision
 - own live ESL session state
 - restore live runtime continuity after a process restart
-- own live socket/session continuity or reconnect supervision
 - execute business telephony logic
 - embed Laravel-specific persistence abstractions
 
@@ -227,7 +226,6 @@ name matching; unhandled records remain observational.
 use Apntalk\EslReplay\Checkpoint\ReplayCheckpointReference;
 use Apntalk\EslReplay\Recovery\CheckpointReconstructionWindowResolver;
 use Apntalk\EslReplay\Recovery\RecoveryEvidenceEngine;
-use Apntalk\EslReplay\Recovery\RecoveryMetadataKeys;
 
 $repository = new ReplayCheckpointRepository($checkpointStore);
 $checkpoint = $repository->save(

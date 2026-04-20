@@ -199,6 +199,9 @@ public function inject(ReplayExecutionCandidate $candidate): InjectionResult;
 | `InjectionResult` | Structured result of one guarded re-injection attempt |
 | `ReconstructionWindow` | Bounded append-ordered reconstruction window over stored artifacts |
 | `RecoveryManifest` | Deterministic identity and verdict for one evidence bundle |
+| `RecoveryGenerationObservation` | One reconstructed recovery-generation observation in append order |
+| `ReconstructionVerdict` | Deterministic reconstruction posture and issue set |
+| `ReconstructionIssue` | One fail-closed insufficiency, ambiguity, or mismatch issue |
 | `RuntimeContinuitySnapshot` | Reconstructed bounded runtime continuity posture |
 | `OperationRecoveryRecord` | Reconstructed operation lifecycle evidence |
 | `TerminalPublicationEvidenceRecord` | Bounded terminal-publication evidence |

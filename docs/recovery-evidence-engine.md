@@ -58,12 +58,19 @@ It does not collapse these into one type.
 - `CheckpointReconstructionWindowResolver`
 - `RecoveryEvidenceEngine`
 - `RecoveryManifest`
+- `RecoveryGenerationObservation`
+- `ReconstructionVerdict`
+- `ReconstructionIssue`
 - `RuntimeContinuitySnapshot`
 - `OperationRecoveryRecord`
 - `TerminalPublicationEvidenceRecord`
 - `LifecycleSemanticEvidenceRecord`
+- `EvidenceRecordReference`
 - `EvidenceBundle`
 - `ScenarioExpectation`
+- `ExpectedOperationLifecycle`
+- `ExpectedTerminalPublication`
+- `ExpectedLifecycleSemantic`
 - `ScenarioComparisonResult`
 
 ## Reconstruction rules

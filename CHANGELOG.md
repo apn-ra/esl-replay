@@ -4,6 +4,8 @@ All notable changes to `apntalk/esl-replay` are documented here.
 
 ## [Unreleased]
 
+## [0.9.4-rc1] — Release Candidate
+
 ### Added
 
 - additive recovery/evidence engine over stored artifacts through:
