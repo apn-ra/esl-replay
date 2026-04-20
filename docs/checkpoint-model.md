@@ -100,7 +100,7 @@ It is not a general checkpoint search API.
 Checkpoints are stored as individual JSON files:
 
 ```
-/var/checkpoints/{key}.checkpoint.json
+/var/checkpoints/{sanitized-key-prefix}-{sha256-original-key}.checkpoint.json
 ```
 
 Writes are atomic: the JSON is written to a `.tmp` staging file, then renamed
@@ -123,4 +123,6 @@ next sequence a checkpoint would need, retention fails explicitly via
 
 Checkpoint keys are sanitised before use as filenames. Only `[a-zA-Z0-9\-_.]`
 are allowed. Other characters are collapsed to `_`. Leading/trailing dots are
-stripped. Keys that reduce to empty strings are hashed with md5.
+stripped. The persisted filename also includes a SHA-256 hash of the original
+key, so distinct keys such as `my/key`, `my key`, and `my_key` do not collide
+even though they share the same sanitised prefix.

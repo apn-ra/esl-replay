@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Apntalk\EslReplay\Tests\Unit\Checkpoint;
 
+use Apntalk\EslReplay\Artifact\OperatorIdentityKeys;
 use Apntalk\EslReplay\Checkpoint\ReplayCheckpointReference;
 use PHPUnit\Framework\TestCase;
 
@@ -22,10 +23,10 @@ final class ReplayCheckpointReferenceTest extends TestCase
 
         $this->assertSame([
             'attempt' => 2,
-            'replay_session_id' => 'replay-1',
+            OperatorIdentityKeys::REPLAY_SESSION_ID => 'replay-1',
             'job_uuid' => 'job-1',
-            'pbx_node_slug' => 'pbx-a',
-            'worker_session_id' => 'worker-a',
+            OperatorIdentityKeys::PBX_NODE_SLUG => 'pbx-a',
+            OperatorIdentityKeys::WORKER_SESSION_ID => 'worker-a',
         ], $reference->metadataWithIdentityAnchors());
     }
 

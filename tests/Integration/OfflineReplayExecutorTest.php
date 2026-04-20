@@ -181,7 +181,7 @@ final class OfflineReplayExecutorTest extends TestCase
         $executorA = OfflineReplayExecutor::make(new ExecutionConfig(dryRun: false), $store, $registry);
         $executorB = OfflineReplayExecutor::make(
             new ExecutionConfig(dryRun: false),
-            new FilesystemReplayArtifactStore($this->tmpDir),
+            $store,
             new ReplayHandlerRegistry(['api.dispatch' => new FakeReplayRecordHandler()]),
         );
 

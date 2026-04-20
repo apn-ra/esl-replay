@@ -10,9 +10,10 @@ use Apntalk\EslReplay\Storage\StoredReplayRecord;
 /**
  * Computes and verifies SHA-256 checksums over canonical artifact fields.
  *
- * The checksum is an integrity marker only. It proves that a stored record's
- * payload has not been corrupted since write time. It does not participate
- * in deduplication semantics.
+ * The checksum is an integrity marker only. Consumers may invoke verify() to
+ * check that the canonical artifact fields still match the stored checksum. It
+ * does not participate in deduplication semantics, and ordinary read paths do
+ * not verify it automatically.
  *
  * Canonical form: JSON-encoded, keys sorted, no escaped slashes, UTF-8.
  * The canonical form is stable across PHP versions and must not change
@@ -41,8 +42,8 @@ final class ArtifactChecksum
     }
 
     /**
-     * Verify that a stored record's checksum matches its stored payload fields.
-     * Called at read time to detect corruption.
+     * Verify that a stored record's checksum matches its canonical artifact
+     * fields. This is consumer-invoked; normal readers do not call it.
      */
     public static function verify(StoredReplayRecord $record): bool
     {

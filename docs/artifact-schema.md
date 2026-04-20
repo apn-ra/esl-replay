@@ -48,6 +48,22 @@ Each persisted NDJSON line carries these fields:
 | `checksum` | `string` (SHA-256 hex) | Integrity marker. See `docs/artifact-identity-and-ordering.md`. |
 | `tags` | `object` | Optional indexable tags added at storage time. |
 
+## Operator identity keys
+
+`OperatorIdentityKeys` publishes the stable cross-package key names expected
+from upstream producers such as `apntalk/esl-react`:
+
+| Constant | Key | Expected location |
+|---|---|---|
+| `OperatorIdentityKeys::REPLAY_SESSION_ID` | `replay_session_id` | Prefer `correlation_ids`; `runtime_flags` is accepted as a fallback for derived inspection |
+| `OperatorIdentityKeys::PBX_NODE_SLUG` | `pbx_node_slug` | `runtime_flags` |
+| `OperatorIdentityKeys::WORKER_SESSION_ID` | `worker_session_id` | `runtime_flags` |
+
+These keys are used for bounded read criteria, SQLite derived inspection
+columns, and checkpoint metadata created through `ReplayCheckpointReference`.
+They are additive identity metadata and are not included in checksum
+computation.
+
 ## Schema version rule
 
 When a reader encounters a `schema_version` other than the supported version,

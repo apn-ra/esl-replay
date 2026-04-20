@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Apntalk\EslReplay\Tests\Integration\Filesystem;
 
 use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
+use Apntalk\EslReplay\Adapter\Filesystem\NdjsonReplayReader;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
 use Apntalk\EslReplay\Serialization\ReplayArtifactSerializer;
 use Apntalk\EslReplay\Tests\Fixtures\FakeCapturedArtifact;
@@ -93,6 +94,7 @@ final class FilesystemChaosTest extends TestCase
         $store->write(FakeCapturedArtifact::eventRaw());
 
         file_put_contents($this->artifactFile, "{\"partial_tail\"\n", FILE_APPEND);
+        unset($store);
 
         $reopened = new FilesystemReplayArtifactStore($this->tmpDir);
         $records = $reopened->readFromCursor($reopened->openCursor(), 10);
@@ -103,9 +105,66 @@ final class FilesystemChaosTest extends TestCase
 
         $this->assertNotNull($newRecord);
         $this->assertSame(3, $newRecord->appendSequence);
+        unset($reopened);
 
         $reopenedAgain = new FilesystemReplayArtifactStore($this->tmpDir);
         $allRecords = $reopenedAgain->readFromCursor($reopenedAgain->openCursor(), 10);
         $this->assertSame([1, 2, 3], array_map(static fn ($record) => $record->appendSequence, $allRecords));
+    }
+
+    public function test_writer_waits_for_artifact_coordination_lock_before_opening_artifact_file(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(FakeCapturedArtifact::apiDispatch('before-lock'));
+        unset($store);
+
+        $lockHandle = fopen($this->artifactFile . '.lock', 'c');
+        $this->assertIsResource($lockHandle);
+        $this->assertTrue(flock($lockHandle, LOCK_EX));
+
+        $scriptPath = $this->tmpDir . '/blocked-writer.php';
+        file_put_contents($scriptPath, sprintf(<<<'PHP'
+<?php
+require %s;
+
+use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
+use Apntalk\EslReplay\Tests\Fixtures\FakeCapturedArtifact;
+
+$store = new FilesystemReplayArtifactStore($argv[1]);
+$store->write(FakeCapturedArtifact::apiDispatch('after-lock'));
+PHP, var_export(dirname(__DIR__, 3) . '/vendor/autoload.php', true)));
+
+        $process = proc_open(
+            [PHP_BINARY, $scriptPath, $this->tmpDir],
+            [
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            dirname(__DIR__, 3),
+        );
+        $this->assertIsResource($process);
+
+        try {
+            usleep(200_000);
+            $reader = new NdjsonReplayReader($this->artifactFile);
+            $recordsWhileLocked = $reader->readFromCursor($reader->openCursor(), 10);
+            $this->assertSame(['before-lock'], array_map(static fn ($record) => $record->sessionId, $recordsWhileLocked));
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $exitCode = proc_close($process);
+        $this->assertSame(0, $exitCode, trim((string) $stdout . "\n" . (string) $stderr));
+
+        $reader = new NdjsonReplayReader($this->artifactFile);
+        $recordsAfterUnlock = $reader->readFromCursor($reader->openCursor(), 10);
+        $this->assertSame(['before-lock', 'after-lock'], array_map(static fn ($record) => $record->sessionId, $recordsAfterUnlock));
     }
 }

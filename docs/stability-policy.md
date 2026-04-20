@@ -50,6 +50,10 @@ The following are stable and will not change in a breaking way within a minor ve
 
 **Input contract:**
 - `CapturedArtifactEnvelope`
+- `OperatorIdentityKeys`
+
+**Utilities:**
+- `ArtifactChecksum`
 
 ## Internal / provisional
 
@@ -57,7 +61,7 @@ These are internal and may change without notice:
 
 - `NdjsonReplayWriter` / `NdjsonReplayReader` / `FilesystemReplayArtifactStore`
 - `SqliteReplayArtifactStore`
-- `ReplayArtifactSerializer` / `ArtifactChecksum` / `StoredReplayRecordFactory`
+- `ReplayArtifactSerializer` / `StoredReplayRecordFactory`
 - `FilesystemCheckpointStore`
 - Any future query DSL internals
 - Any future retention worker internals
@@ -100,8 +104,9 @@ contracts, DTOs, config objects, and documented entry points listed above.
 
 ## RC posture
 
-The current release-cut posture is `v0.9.0-rc1`, not final `v0.9.0`, because
-hostile-path behavior changed late in cycle during aggressive chaos testing.
+The current release-cut posture is `v0.9.3-rc1`, not a final patch release,
+because filesystem, retention, checkpoint, checksum, and public-contract
+hardening changed late in cycle and should ship through an RC first.
 
 ## Breaking change policy
 

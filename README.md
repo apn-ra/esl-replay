@@ -59,6 +59,10 @@ $id = $store->write($artifact);
 - `sqlite` with a SQLite database file path
 - `database` as a compatibility alias for the current SQLite-backed adapter
 
+The same `storagePath` constructor argument is interpreted by adapter: a
+filesystem store expects a directory, while the SQLite-backed adapters expect a
+database file path.
+
 PostgreSQL is not implemented in this release.
 
 ## Quick start: reading artifacts
@@ -245,21 +249,32 @@ $policy = new PrunePolicy(
 // Plan first: inspect what would be pruned.
 $plan = $pruner->planForCheckpointQuery(
     $checkpointStore,
-    new ReplayCheckpointCriteria(limit: 100),
+    new ReplayCheckpointCriteria(
+        replaySessionId: 'replay-session-001',
+        workerSessionId: 'my-processor',
+        limit: 100,
+    ),
     $policy,
 );
 
 // Apply explicitly after reviewing the plan.
 $result = $pruner->pruneForCheckpointQuery(
     $checkpointStore,
-    new ReplayCheckpointCriteria(limit: 100),
+    new ReplayCheckpointCriteria(
+        replaySessionId: 'replay-session-001',
+        workerSessionId: 'my-processor',
+        limit: 100,
+    ),
     $policy,
 );
 ```
 
 Retention is filesystem-backed in this release. It prunes only an ordered prefix,
 validates active checkpoint compatibility before pruning, preserves protected
-record windows, and fails explicitly on malformed retained input.
+record windows, and fails explicitly on malformed retained input. Checkpoint
+query pruning fails closed when the query resolves no active checkpoints; pass
+`allowEmptyCheckpointQuery: true` only when an uncheckpointed prune is
+intentional.
 
 ## Opt-in live verification
 

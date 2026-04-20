@@ -12,13 +12,20 @@ Each line is a complete serialized `StoredReplayRecord` (one JSON object per lin
 
 ### Write behavior
 
-1. The writer acquires an exclusive file lock (`LOCK_EX`).
-2. The artifact is serialized to a single JSON line.
-3. The line is appended with a trailing `\n`.
-4. The file is flushed before the lock is released.
-5. The storage record id is returned to the caller.
+1. The store/writer acquires a long-lived exclusive writer ownership lock
+   (`artifacts.ndjson.writer.lock`) during write-capable initialization.
+2. Each write acquires a short-lived exclusive sibling coordination lock
+   (`artifacts.ndjson.lock`) before opening the artifact file.
+3. The artifact is serialized to a single JSON line.
+4. The line is appended with a trailing `\n`.
+5. The file is flushed before the coordination lock is released.
+6. The storage record id is returned to the caller.
 
 On failure, `ArtifactPersistenceException` is thrown. Artifacts are never silently dropped.
+The ownership lock prevents two package filesystem writers from owning the same
+append-sequence stream at the same time. The coordination lock is shared with
+filesystem retention rewriting, so package writers either finish before pruning
+starts or open the replacement `artifacts.ndjson` after pruning completes.
 
 ### Read behavior
 
@@ -53,23 +60,34 @@ storage; it does not reinterpret malformed data as valid records.
 On construction, `FilesystemReplayArtifactStore` scans the artifact file and records
 the highest `appendSequence` found. New writes continue from that sequence + 1.
 
+If `artifacts.ndjson` does not exist yet, recovery starts at sequence `0`. If
+the file exists but cannot be opened for recovery, construction fails explicitly
+with `ArtifactPersistenceException` rather than treating the existing stream as
+empty and risking duplicate append sequences.
+
 Partial writes (incomplete JSON lines from a prior crash) are silently skipped by
 the deserializer. They do not corrupt subsequent reads.
 
 ### Concurrency model
 
-The filesystem adapter is designed for **single-writer, multiple-reader** use within
-a single process.
+The filesystem adapter enforces **single package writer ownership** for a storage
+path. A second package filesystem writer/store pointed at the same path fails
+closed with `ArtifactPersistenceException` while the first owner is active.
+Multiple readers may inspect the file while one package writer owns it.
 
-For concurrent multi-process writes, use a database adapter. The current release
-includes a SQLite adapter with database-level concurrency control that preserves
-the same replay contract semantics as the filesystem adapter.
+This guarantee applies to writers that use this package. External processes
+that bypass `FilesystemReplayArtifactStore` must not write `artifacts.ndjson`.
+For broader concurrent write scenarios, use a database adapter. The current
+release includes a SQLite adapter with database-level concurrency control that
+preserves the same replay contract semantics as the filesystem adapter.
 
 ### File layout
 
 ```
 /var/replay/
   artifacts.ndjson        ← one StoredReplayRecord per line
+  artifacts.ndjson.writer.lock ← long-lived package writer ownership lock
+  artifacts.ndjson.lock   ← short-lived append/prune coordination lock
 ```
 
 ### Filesystem retention behavior
@@ -77,7 +95,10 @@ the same replay contract semantics as the filesystem adapter.
 `CheckpointAwarePruner` coordinates filesystem retention by rewriting
 `artifacts.ndjson` through a temp file and atomic rename. Pruning removes only
 an ordered prefix of valid stored records and preserves append-sequence values on
-retained records.
+retained records. Before rewrite planning starts, pruning acquires the same
+`artifacts.ndjson.lock` sibling lock used by the package filesystem writer. If
+the lock is already held, pruning fails closed with `RetentionException` rather
+than rewriting while a writer may still append to the previous inode.
 
 Unlike ordinary read paths, retention/rewrite planning is stricter: malformed
 retained input causes pruning to fail explicitly rather than silently skipping
@@ -87,8 +108,8 @@ bad lines and rewriting around them.
 
 ```
 /var/checkpoints/
-  {key}.checkpoint.json   ← one JSON object per checkpoint key
-  {key}.checkpoint.json.tmp ← atomic write staging file (transient)
+  {sanitized-key-prefix}-{sha256-original-key}.checkpoint.json   ← one JSON object per checkpoint key
+  {sanitized-key-prefix}-{sha256-original-key}.checkpoint.json.tmp ← atomic write staging file (transient)
 ```
 
 ## Schema versioning
@@ -108,10 +129,11 @@ SQLite persists the same stored record fields, orders reads by `append_sequence`
 and supports the same bounded reader criteria as the filesystem adapter.
 Current exact-match operator fields include:
 - `jobUuid`
-- `replaySessionId` (derived from `correlation_ids.replay_session_id`, with
-  fallback to `runtime_flags.replay_session_id` when present)
-- `pbxNodeSlug` (derived from `runtime_flags.pbx_node_slug`)
-- `workerSessionId` (derived from `runtime_flags.worker_session_id`)
+- `replaySessionId` (derived from
+  `correlation_ids[OperatorIdentityKeys::REPLAY_SESSION_ID]`, with fallback to
+  `runtime_flags[OperatorIdentityKeys::REPLAY_SESSION_ID]` when present)
+- `pbxNodeSlug` (derived from `runtime_flags[OperatorIdentityKeys::PBX_NODE_SLUG]`)
+- `workerSessionId` (derived from `runtime_flags[OperatorIdentityKeys::WORKER_SESSION_ID]`)
 
 For SQLite, these operator fields are also persisted into additive derived
 columns so bounded inspection does not require downstream scan-and-filter logic.

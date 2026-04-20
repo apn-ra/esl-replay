@@ -28,6 +28,29 @@
 
 ## Last completed phase
 
+### Phase 11 — hardening and API freeze
+
+- Completed hardening and API freeze audit for the current release surface
+- Confirmed deterministic storage/read behavior, checkpoint progress recovery,
+  offline replay, guarded re-injection, retention coordination, and SQLite
+  parity remain within package scope
+- Added release-facing hardening for empty-checkpoint prune safety, checkpoint
+  filename collision safety, filesystem retention/write coordination, checksum
+  semantics, operator identity keys, unreadable filesystem recovery, and
+  filesystem writer ownership
+- Updated tests and docs to match implemented truth
+- Acceptance result:
+  - Passed
+- Blockers:
+  - None
+
+## Next work
+
+1. No remaining implementation phases in the current roadmap.
+2. Current release-cut posture after hardening and RC prep is `v0.9.3-rc1`.
+
+## Phase history
+
 ### Phase 6 — bounded reader enrichment
 
 - Implemented immutable `ReplayReadCriteria`
@@ -40,13 +63,6 @@
 - Preserved append-order and cursor semantics
 - Added filesystem integration tests and criteria unit tests
 - Updated reader and ordering docs to implemented truth
-
-## Next work
-
-1. No remaining implementation phases in the current roadmap.
-2. Current release-cut posture after smoke, chaos, and RC prep is `v0.9.0-rc1`.
-
-## Phase history
 
 ### Phase 7 — offline replay handler dispatch
 

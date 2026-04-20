@@ -3,6 +3,18 @@
     "description": "Durable replay artifact platform for FreeSWITCH ESL runtime output",
     "type": "library",
     "license": "MIT",
+    "homepage": "https://github.com/apn-ra/esl-replay",
+    "keywords": [
+        "freeswitch",
+        "esl",
+        "replay",
+        "event-sourcing",
+        "artifact-storage"
+    ],
+    "support": {
+        "issues": "https://github.com/apn-ra/esl-replay/issues",
+        "source": "https://github.com/apn-ra/esl-replay"
+    },
     "require": {
         "php": "^8.2"
     },

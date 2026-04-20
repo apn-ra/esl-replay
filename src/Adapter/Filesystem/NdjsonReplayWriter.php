@@ -15,13 +15,16 @@ use Apntalk\EslReplay\Storage\StoredReplayRecordFactory;
  * Append-only NDJSON writer for replay artifacts.
  *
  * Each artifact is serialized as a single-line JSON string followed by "\n".
- * File-level exclusive locking (LOCK_EX) prevents concurrent write corruption
- * within a single process. Cross-process safety requires OS-level flock support.
+ * A sibling coordination lock ({artifact file}.lock) is acquired before opening
+ * the artifact file, so package writers serialize with filesystem retention
+ * rewrite/rename operations and do not append to orphaned inodes.
+ * A separate long-lived ownership lock ({artifact file}.writer.lock) prevents
+ * multiple package writer instances from owning the same sequence stream.
  *
  * Ordering guarantee: records are appended in the order write() is called.
  * The appendSequence is strictly monotonically increasing within this writer instance.
  *
- * Assumption: one NdjsonReplayWriter instance owns one NDJSON file.
+ * Assumption: one package writer owns one NDJSON file at a time.
  * For multi-process scenarios use a database adapter instead.
  *
  * Internal — not part of the stable public API.
@@ -30,6 +33,8 @@ final class NdjsonReplayWriter implements ReplayArtifactWriterInterface
 {
     private readonly StoredReplayRecordFactory $factory;
     private readonly ReplayArtifactSerializer $serializer;
+    private readonly string $lockFilePath;
+    private readonly FilesystemWriterOwnershipLock $ownershipLock;
 
     /**
      * @param string $filePath       Absolute path to the NDJSON artifact file.
@@ -41,8 +46,10 @@ final class NdjsonReplayWriter implements ReplayArtifactWriterInterface
         private readonly string $filePath,
         int $initialSequence = 0,
     ) {
+        $this->ownershipLock = new FilesystemWriterOwnershipLock($filePath . '.writer.lock');
         $this->factory    = new StoredReplayRecordFactory($initialSequence);
         $this->serializer = new ReplayArtifactSerializer();
+        $this->lockFilePath = $filePath . '.lock';
     }
 
     /**
@@ -55,35 +62,46 @@ final class NdjsonReplayWriter implements ReplayArtifactWriterInterface
         $record = $this->factory->fromEnvelope($artifact);
         $line   = $this->serializer->serialize($record) . "\n";
 
-        $handle = @fopen($this->filePath, 'a');
-        if ($handle === false) {
+        $lockHandle = @fopen($this->lockFilePath, 'c');
+        if ($lockHandle === false) {
             throw new ArtifactPersistenceException(
-                "NdjsonReplayWriter: failed to open artifact file for writing: {$this->filePath}",
+                "NdjsonReplayWriter: failed to open artifact coordination lock: {$this->lockFilePath}",
             );
         }
 
         try {
-            if (!flock($handle, LOCK_EX)) {
+            if (!flock($lockHandle, LOCK_EX)) {
                 throw new ArtifactPersistenceException(
-                    "NdjsonReplayWriter: failed to acquire exclusive lock on: {$this->filePath}",
+                    "NdjsonReplayWriter: failed to acquire exclusive coordination lock: {$this->lockFilePath}",
                 );
             }
 
-            $byteCount = fwrite($handle, $line);
-            if ($byteCount === false || $byteCount !== strlen($line)) {
+            $handle = @fopen($this->filePath, 'a');
+            if ($handle === false) {
                 throw new ArtifactPersistenceException(
-                    "NdjsonReplayWriter: incomplete write to: {$this->filePath}",
+                    "NdjsonReplayWriter: failed to open artifact file for writing: {$this->filePath}",
                 );
             }
 
-            if (!fflush($handle)) {
-                throw new ArtifactPersistenceException(
-                    "NdjsonReplayWriter: failed to flush artifact record to: {$this->filePath}",
-                );
+            try {
+                $byteCount = fwrite($handle, $line);
+                if ($byteCount === false || $byteCount !== strlen($line)) {
+                    throw new ArtifactPersistenceException(
+                        "NdjsonReplayWriter: incomplete write to: {$this->filePath}",
+                    );
+                }
+
+                if (!fflush($handle)) {
+                    throw new ArtifactPersistenceException(
+                        "NdjsonReplayWriter: failed to flush artifact record to: {$this->filePath}",
+                    );
+                }
+            } finally {
+                fclose($handle);
             }
         } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
         }
 
         return $record->id;
@@ -96,5 +114,10 @@ final class NdjsonReplayWriter implements ReplayArtifactWriterInterface
     public function currentSequence(): int
     {
         return $this->factory->currentSequence();
+    }
+
+    public function __destruct()
+    {
+        $this->ownershipLock->release();
     }
 }

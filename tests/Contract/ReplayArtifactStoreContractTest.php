@@ -95,6 +95,7 @@ final class ReplayArtifactStoreContractTest extends TestCase
         $store = $this->makeStore($adapter);
         $store->write(FakeCapturedArtifact::apiDispatch());
         $store->write(FakeCapturedArtifact::eventRaw());
+        unset($store);
 
         $storeAfterRestart = $this->makeStore($adapter);
         $id = $storeAfterRestart->write(FakeCapturedArtifact::bgapiDispatch());

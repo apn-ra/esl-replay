@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Apntalk\EslReplay\Adapter\Sqlite;
 
+use Apntalk\EslReplay\Artifact\OperatorIdentityKeys;
 use Apntalk\EslReplay\Artifact\CapturedArtifactEnvelope;
 use Apntalk\EslReplay\Config\StorageConfig;
 use Apntalk\EslReplay\Contracts\ReplayArtifactStoreInterface;
@@ -117,9 +118,9 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
         foreach ([
             'artifact_name' => $criteria?->artifactName,
             'job_uuid' => $criteria?->jobUuid,
-            'replay_session_id' => $criteria?->replaySessionId,
-            'pbx_node_slug' => $criteria?->pbxNodeSlug,
-            'worker_session_id' => $criteria?->workerSessionId,
+            OperatorIdentityKeys::REPLAY_SESSION_ID => $criteria?->replaySessionId,
+            OperatorIdentityKeys::PBX_NODE_SLUG => $criteria?->pbxNodeSlug,
+            OperatorIdentityKeys::WORKER_SESSION_ID => $criteria?->workerSessionId,
             'session_id' => $criteria?->sessionId,
             'connection_generation' => $criteria?->connectionGeneration,
         ] as $column => $value) {
@@ -209,9 +210,9 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
         $existingColumns = $this->existingColumns();
 
         foreach ([
-            'replay_session_id',
-            'pbx_node_slug',
-            'worker_session_id',
+            OperatorIdentityKeys::REPLAY_SESSION_ID,
+            OperatorIdentityKeys::PBX_NODE_SLUG,
+            OperatorIdentityKeys::WORKER_SESSION_ID,
         ] as $column) {
             if (in_array($column, $existingColumns, true)) {
                 continue;
@@ -257,9 +258,9 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
             'connection_generation' => $record->connectionGeneration,
             'session_id' => $record->sessionId,
             'job_uuid' => $record->jobUuid,
-            'replay_session_id' => ReplayInspectionFields::replaySessionId($record),
-            'pbx_node_slug' => ReplayInspectionFields::pbxNodeSlug($record),
-            'worker_session_id' => ReplayInspectionFields::workerSessionId($record),
+            OperatorIdentityKeys::REPLAY_SESSION_ID => ReplayInspectionFields::replaySessionId($record),
+            OperatorIdentityKeys::PBX_NODE_SLUG => ReplayInspectionFields::pbxNodeSlug($record),
+            OperatorIdentityKeys::WORKER_SESSION_ID => ReplayInspectionFields::workerSessionId($record),
             'event_name' => $record->eventName,
             'capture_path' => $record->capturePath,
             'correlation_ids' => json_encode($record->correlationIds, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -374,9 +375,9 @@ final class SqliteReplayArtifactStore implements ReplayArtifactStoreInterface
 
             $update->execute([
                 'id' => (string) $row['id'],
-                'replay_session_id' => ReplayInspectionFields::replaySessionIdFromArrays($correlationIds, $runtimeFlags),
-                'pbx_node_slug' => ReplayInspectionFields::pbxNodeSlugFromRuntimeFlags($runtimeFlags),
-                'worker_session_id' => ReplayInspectionFields::workerSessionIdFromRuntimeFlags($runtimeFlags),
+                OperatorIdentityKeys::REPLAY_SESSION_ID => ReplayInspectionFields::replaySessionIdFromArrays($correlationIds, $runtimeFlags),
+                OperatorIdentityKeys::PBX_NODE_SLUG => ReplayInspectionFields::pbxNodeSlugFromRuntimeFlags($runtimeFlags),
+                OperatorIdentityKeys::WORKER_SESSION_ID => ReplayInspectionFields::workerSessionIdFromRuntimeFlags($runtimeFlags),
             ]);
         }
     }

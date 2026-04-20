@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Apntalk\EslReplay\Read;
 
+use Apntalk\EslReplay\Artifact\OperatorIdentityKeys;
 use Apntalk\EslReplay\Storage\StoredReplayRecord;
 
 /**
@@ -29,12 +30,12 @@ final class ReplayInspectionFields
      */
     public static function replaySessionIdFromArrays(array $correlationIds, array $runtimeFlags): ?string
     {
-        $fromCorrelation = self::stringValue($correlationIds, 'replay_session_id');
+        $fromCorrelation = self::stringValue($correlationIds, OperatorIdentityKeys::REPLAY_SESSION_ID);
         if ($fromCorrelation !== null) {
             return $fromCorrelation;
         }
 
-        return self::stringValue($runtimeFlags, 'replay_session_id');
+        return self::stringValue($runtimeFlags, OperatorIdentityKeys::REPLAY_SESSION_ID);
     }
 
     public static function pbxNodeSlug(StoredReplayRecord $record): ?string
@@ -47,7 +48,7 @@ final class ReplayInspectionFields
      */
     public static function pbxNodeSlugFromRuntimeFlags(array $runtimeFlags): ?string
     {
-        return self::stringValue($runtimeFlags, 'pbx_node_slug');
+        return self::stringValue($runtimeFlags, OperatorIdentityKeys::PBX_NODE_SLUG);
     }
 
     public static function workerSessionId(StoredReplayRecord $record): ?string
@@ -60,7 +61,7 @@ final class ReplayInspectionFields
      */
     public static function workerSessionIdFromRuntimeFlags(array $runtimeFlags): ?string
     {
-        return self::stringValue($runtimeFlags, 'worker_session_id');
+        return self::stringValue($runtimeFlags, OperatorIdentityKeys::WORKER_SESSION_ID);
     }
 
     /**

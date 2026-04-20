@@ -148,6 +148,23 @@ final class CheckpointPersistenceTest extends TestCase
         $this->assertSame(4096, $loaded->cursor->byteOffsetHint);
     }
 
+    public function test_sanitized_checkpoint_keys_do_not_collide_on_filesystem(): void
+    {
+        $store = new FilesystemCheckpointStore($this->tmpDir);
+
+        $store->save(new ReplayCheckpoint('my/key', ReplayReadCursor::start()->advance(1), new \DateTimeImmutable()));
+        $store->save(new ReplayCheckpoint('my key', ReplayReadCursor::start()->advance(2), new \DateTimeImmutable()));
+        $store->save(new ReplayCheckpoint('my_key', ReplayReadCursor::start()->advance(3), new \DateTimeImmutable()));
+
+        $files = glob($this->tmpDir . '/*.checkpoint.json');
+        $this->assertIsArray($files);
+        $this->assertCount(3, $files);
+
+        $this->assertSame(1, $store->load('my/key')?->cursor->lastConsumedSequence);
+        $this->assertSame(2, $store->load('my key')?->cursor->lastConsumedSequence);
+        $this->assertSame(3, $store->load('my_key')?->cursor->lastConsumedSequence);
+    }
+
     public function test_make_factory_method_creates_store(): void
     {
         $config = new CheckpointConfig($this->tmpDir, 'test-key');

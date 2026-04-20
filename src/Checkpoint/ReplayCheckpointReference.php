@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Apntalk\EslReplay\Checkpoint;
 
+use Apntalk\EslReplay\Artifact\OperatorIdentityKeys;
+
 /**
  * First-class operational checkpoint write reference.
  *
@@ -45,10 +47,10 @@ final readonly class ReplayCheckpointReference
     public function metadataWithIdentityAnchors(): array
     {
         return array_merge($this->metadata, array_filter([
-            'replay_session_id' => $this->replaySessionId,
+            OperatorIdentityKeys::REPLAY_SESSION_ID => $this->replaySessionId,
             'job_uuid' => $this->jobUuid,
-            'pbx_node_slug' => $this->pbxNodeSlug,
-            'worker_session_id' => $this->workerSessionId,
+            OperatorIdentityKeys::PBX_NODE_SLUG => $this->pbxNodeSlug,
+            OperatorIdentityKeys::WORKER_SESSION_ID => $this->workerSessionId,
         ], static fn (mixed $value): bool => $value !== null));
     }
 }

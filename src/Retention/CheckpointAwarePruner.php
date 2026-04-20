@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Apntalk\EslReplay\Retention;
 
-use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
+use Apntalk\EslReplay\Adapter\Filesystem\NdjsonReplayReader;
 use Apntalk\EslReplay\Checkpoint\CheckpointCompatibilityValidator;
 use Apntalk\EslReplay\Checkpoint\ReplayCheckpoint;
 use Apntalk\EslReplay\Checkpoint\ReplayCheckpointCriteria;
@@ -22,6 +22,8 @@ use Apntalk\EslReplay\Storage\StoredReplayRecord;
  * - active checkpoints are validated before pruning
  * - records beyond the oldest active checkpoint cursor are preserved
  * - a protected tail window may be reserved from pruning
+ * - rewrite/rename is coordinated with package filesystem writers via a
+ *   sibling artifact lock and fails closed if that lock is already held
  */
 final class CheckpointAwarePruner
 {
@@ -30,12 +32,14 @@ final class CheckpointAwarePruner
     private readonly ReplayArtifactSerializer $serializer;
     private readonly CheckpointCompatibilityValidator $validator;
     private readonly string $artifactFilePath;
+    private readonly string $lockFilePath;
 
     public function __construct(
-        private readonly string $storagePath,
+        string $storagePath,
         ?CheckpointCompatibilityValidator $validator = null,
     ) {
         $this->artifactFilePath = rtrim($storagePath, '/\\') . '/' . self::ARTIFACT_FILE;
+        $this->lockFilePath = $this->artifactFilePath . '.lock';
         $this->serializer = new ReplayArtifactSerializer();
         $this->validator = $validator ?? new CheckpointCompatibilityValidator();
     }
@@ -57,7 +61,7 @@ final class CheckpointAwarePruner
         );
 
         $this->validator->assertCompatible(
-            new FilesystemReplayArtifactStore($this->storagePath),
+            new NdjsonReplayReader($this->artifactFilePath),
             $activeCheckpoints,
         );
 
@@ -160,18 +164,20 @@ final class CheckpointAwarePruner
         PrunePolicy $policy,
         ?\DateTimeImmutable $now = null,
     ): RetentionResult {
-        $plan = $this->plan($activeCheckpoints, $policy, $now);
-        $entries = $this->loadEntries();
-        $retainedEntries = array_slice($entries, $plan->prunedCount);
-        $prunedAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        return $this->withExclusiveRewriteLock(function () use ($activeCheckpoints, $policy, $now): RetentionResult {
+            $plan = $this->plan($activeCheckpoints, $policy, $now);
+            $entries = $this->loadEntries();
+            $retainedEntries = array_slice($entries, $plan->prunedCount);
+            $prunedAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
 
-        if ($plan->prunedCount === 0) {
-            return new RetentionResult(plan: $plan, changed: false, prunedAt: $prunedAt);
-        }
+            if ($plan->prunedCount === 0) {
+                return new RetentionResult(plan: $plan, changed: false, prunedAt: $prunedAt);
+            }
 
-        $this->rewriteRetainedEntries($retainedEntries);
+            $this->rewriteRetainedEntries($retainedEntries);
 
-        return new RetentionResult(plan: $plan, changed: true, prunedAt: $prunedAt);
+            return new RetentionResult(plan: $plan, changed: true, prunedAt: $prunedAt);
+        });
     }
 
     public function planForCheckpointQuery(
@@ -179,8 +185,13 @@ final class CheckpointAwarePruner
         ReplayCheckpointCriteria $criteria,
         PrunePolicy $policy,
         ?\DateTimeImmutable $now = null,
+        bool $allowEmptyCheckpointQuery = false,
     ): RetentionPlan {
-        return $this->plan($checkpointInspector->find($criteria), $policy, $now);
+        return $this->plan(
+            $this->resolveCheckpointsForQuery($checkpointInspector, $criteria, $allowEmptyCheckpointQuery),
+            $policy,
+            $now,
+        );
     }
 
     public function pruneForCheckpointQuery(
@@ -188,8 +199,34 @@ final class CheckpointAwarePruner
         ReplayCheckpointCriteria $criteria,
         PrunePolicy $policy,
         ?\DateTimeImmutable $now = null,
+        bool $allowEmptyCheckpointQuery = false,
     ): RetentionResult {
-        return $this->prune($checkpointInspector->find($criteria), $policy, $now);
+        return $this->prune(
+            $this->resolveCheckpointsForQuery($checkpointInspector, $criteria, $allowEmptyCheckpointQuery),
+            $policy,
+            $now,
+        );
+    }
+
+    /**
+     * @return list<ReplayCheckpoint>
+     *
+     * @throws RetentionException
+     */
+    private function resolveCheckpointsForQuery(
+        ReplayCheckpointInspectorInterface $checkpointInspector,
+        ReplayCheckpointCriteria $criteria,
+        bool $allowEmptyCheckpointQuery,
+    ): array {
+        $checkpoints = $checkpointInspector->find($criteria);
+        if ($checkpoints === [] && !$allowEmptyCheckpointQuery) {
+            throw new RetentionException(
+                'CheckpointAwarePruner: checkpoint query matched no active checkpoints; '
+                . 'pass allowEmptyCheckpointQuery: true only for an intentional uncheckpointed prune.',
+            );
+        }
+
+        return $checkpoints;
     }
 
     /**
@@ -273,6 +310,34 @@ final class CheckpointAwarePruner
             throw new RetentionException(
                 "CheckpointAwarePruner: failed to atomically replace artifact file: {$this->artifactFilePath}",
             );
+        }
+    }
+
+    /**
+     * @param callable(): RetentionResult $operation
+     *
+     * @throws RetentionException
+     */
+    private function withExclusiveRewriteLock(callable $operation): RetentionResult
+    {
+        $lockHandle = @fopen($this->lockFilePath, 'c');
+        if ($lockHandle === false) {
+            throw new RetentionException(
+                "CheckpointAwarePruner: failed to open artifact coordination lock: {$this->lockFilePath}",
+            );
+        }
+
+        try {
+            if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+                throw new RetentionException(
+                    "CheckpointAwarePruner: artifact coordination lock is held; pruning cannot safely rewrite now: {$this->lockFilePath}",
+                );
+            }
+
+            return $operation();
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
         }
     }
 }

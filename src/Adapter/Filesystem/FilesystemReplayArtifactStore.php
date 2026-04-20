@@ -22,8 +22,10 @@ use Apntalk\EslReplay\Storage\StoredReplayRecord;
  * On construction the file is scanned to recover the current append sequence,
  * ensuring that a restarted store continues from the correct position.
  *
- * Concurrency: safe for single-writer, multiple-reader usage within a process.
- * For concurrent multi-process writes use a database adapter.
+ * Concurrency: one package filesystem writer owns a storage path at a time
+ * through artifacts.ndjson.writer.lock. Multiple readers may inspect the
+ * stream while that owner is active. For broader concurrent writes use a
+ * database adapter.
  *
  * Restart-safety: the store recovers the last committed sequence by scanning
  * the artifact file. Partial writes (e.g. from a crash mid-line) are skipped
@@ -92,6 +94,8 @@ final class FilesystemReplayArtifactStore implements ReplayArtifactStoreInterfac
      * Scan the artifact file to recover the highest appendSequence.
      * Returns 0 if the file is absent or empty.
      *
+     * @throws ArtifactPersistenceException when an existing artifact file cannot be opened
+     *
      * Since the writer guarantees append-order, the maximum sequence is on the
      * last valid line. We scan all lines and track the max to handle the edge
      * case of a partial-write corruption on the final line.
@@ -104,7 +108,9 @@ final class FilesystemReplayArtifactStore implements ReplayArtifactStoreInterfac
 
         $handle = @fopen($this->filePath, 'r');
         if ($handle === false) {
-            return 0;
+            throw new ArtifactPersistenceException(
+                "FilesystemReplayArtifactStore: failed to open existing artifact file for sequence recovery: {$this->filePath}",
+            );
         }
 
         $serializer  = new ReplayArtifactSerializer();

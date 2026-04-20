@@ -14,7 +14,8 @@ final readonly class StorageConfig
     public const ADAPTER_DATABASE = 'database';
 
     /**
-     * @param string $storagePath  Absolute path to the directory where artifacts are stored.
+     * @param string $storagePath  Filesystem adapter: artifact directory path. SQLite/database adapter:
+     *                             SQLite database file path.
      * @param string $adapter      Storage adapter identifier. Supported: 'filesystem', 'sqlite',
      *                             and the compatibility alias 'database' (normalized to 'sqlite').
      */

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Apntalk\EslReplay\Checkpoint;
 
+use Apntalk\EslReplay\Artifact\OperatorIdentityKeys;
 use Apntalk\EslReplay\Config\CheckpointConfig;
 use Apntalk\EslReplay\Contracts\ReplayCheckpointInspectorInterface;
 use Apntalk\EslReplay\Contracts\ReplayCheckpointStoreInterface;
@@ -14,7 +15,7 @@ use Apntalk\EslReplay\Exceptions\CheckpointException;
  * Filesystem-backed checkpoint store.
  *
  * Each checkpoint is persisted as a JSON file:
- *   {storagePath}/{sanitizedKey}.checkpoint.json
+ *   {storagePath}/{sanitizedKeyPrefix}-{sha256(originalKey)}.checkpoint.json
  *
  * Writes are atomic: the JSON is written to a temp file, then renamed over the
  * target path. On POSIX systems rename(2) is atomic; on Windows it is
@@ -34,6 +35,7 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface,
         | JSON_PRETTY_PRINT;
 
     private const FILE_SUFFIX = '.checkpoint.json';
+    private const SAFE_KEY_PREFIX_MAX_LENGTH = 80;
 
     /**
      * @throws CheckpointException if the storage directory cannot be created
@@ -106,13 +108,25 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface,
      */
     public function load(string $key): ?ReplayCheckpoint
     {
-        $filePath = $this->checkpointPath($key);
-        return $this->loadCheckpointFile($filePath, $key);
+        foreach ($this->checkpointLookupPaths($key) as $filePath) {
+            $checkpoint = $this->loadCheckpointFile($filePath, $key);
+            if ($checkpoint !== null) {
+                return $checkpoint;
+            }
+        }
+
+        return null;
     }
 
     public function exists(string $key): bool
     {
-        return file_exists($this->checkpointPath($key));
+        foreach ($this->checkpointLookupPaths($key) as $filePath) {
+            if (file_exists($filePath)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -120,9 +134,10 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface,
      */
     public function delete(string $key): void
     {
-        $filePath = $this->checkpointPath($key);
-        if (file_exists($filePath)) {
-            @unlink($filePath);
+        foreach ($this->checkpointLookupPaths($key) as $filePath) {
+            if (file_exists($filePath)) {
+                @unlink($filePath);
+            }
         }
     }
 
@@ -165,22 +180,61 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface,
     /**
      * Resolve the filesystem path for a checkpoint key.
      *
-     * Keys are sanitised to allow only safe filename characters.
-     * Sequences of unsafe characters are collapsed to a single underscore.
-     * Leading/trailing dots are stripped (prevents hidden-file / traversal tricks).
-     * If sanitisation produces an empty string the key is hashed with md5.
+     * Keys keep a sanitised readable prefix plus a SHA-256 hash of the original
+     * key, so distinct keys that sanitise to the same prefix cannot collide.
      */
     private function checkpointPath(string $key): string
     {
-        // Allow: a-z A-Z 0-9 hyphen underscore dot
-        $safe = (string) preg_replace('/[^a-zA-Z0-9\-_.]++/', '_', $key);
-        $safe = trim($safe, '.');
+        return rtrim($this->storagePath, '/\\') . '/'
+            . $this->safeCheckpointFilenamePrefix($key)
+            . '-'
+            . hash('sha256', $key)
+            . self::FILE_SUFFIX;
+    }
+
+    /**
+     * @return non-empty-list<string>
+     */
+    private function checkpointLookupPaths(string $key): array
+    {
+        return [
+            $this->checkpointPath($key),
+            $this->legacyCheckpointPath($key),
+        ];
+    }
+
+    private function legacyCheckpointPath(string $key): string
+    {
+        return rtrim($this->storagePath, '/\\') . '/' . $this->legacySafeCheckpointKey($key) . self::FILE_SUFFIX;
+    }
+
+    private function safeCheckpointFilenamePrefix(string $key): string
+    {
+        $safe = $this->sanitizeCheckpointKey($key);
+        if ($safe === '' || $safe === '_') {
+            $safe = 'checkpoint';
+        }
+
+        return substr($safe, 0, self::SAFE_KEY_PREFIX_MAX_LENGTH);
+    }
+
+    private function legacySafeCheckpointKey(string $key): string
+    {
+        $safe = $this->sanitizeCheckpointKey($key);
 
         if ($safe === '' || $safe === '_') {
             $safe = md5($key);
         }
 
-        return rtrim($this->storagePath, '/\\') . '/' . $safe . self::FILE_SUFFIX;
+        return $safe;
+    }
+
+    private function sanitizeCheckpointKey(string $key): string
+    {
+        // Allow: a-z A-Z 0-9 hyphen underscore dot
+        $safe = (string) preg_replace('/[^a-zA-Z0-9\-_.]++/', '_', $key);
+
+        return trim($safe, '.');
     }
 
     private function loadCheckpointFile(string $filePath, ?string $fallbackKey = null): ?ReplayCheckpoint
@@ -236,7 +290,7 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface,
     {
         if (
             $criteria->replaySessionId !== null
-            && ($checkpoint->metadata['replay_session_id'] ?? null) !== $criteria->replaySessionId
+            && ($checkpoint->metadata[OperatorIdentityKeys::REPLAY_SESSION_ID] ?? null) !== $criteria->replaySessionId
         ) {
             return false;
         }
@@ -247,14 +301,14 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface,
 
         if (
             $criteria->pbxNodeSlug !== null
-            && ($checkpoint->metadata['pbx_node_slug'] ?? null) !== $criteria->pbxNodeSlug
+            && ($checkpoint->metadata[OperatorIdentityKeys::PBX_NODE_SLUG] ?? null) !== $criteria->pbxNodeSlug
         ) {
             return false;
         }
 
         if (
             $criteria->workerSessionId !== null
-            && ($checkpoint->metadata['worker_session_id'] ?? null) !== $criteria->workerSessionId
+            && ($checkpoint->metadata[OperatorIdentityKeys::WORKER_SESSION_ID] ?? null) !== $criteria->workerSessionId
         ) {
             return false;
         }

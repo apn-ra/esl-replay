@@ -42,11 +42,17 @@ silently invalidated by this package.
   protected window prevent further pruning, the plan reports that the size target
   could not be fully satisfied.
 - Pruning rewrites the filesystem NDJSON stream via temp file plus atomic rename.
+- Pruning and package filesystem writes coordinate through
+  `artifacts.ndjson.lock`; pruning fails closed if that lock is already held.
 - `CheckpointAwarePruner` can also resolve active checkpoints from a bounded
-  checkpoint query before planning or pruning, so operators do not need to
-  enumerate checkpoint arrays manually.
+  checkpoint query before planning or pruning. A zero-match checkpoint query
+  fails closed unless `allowEmptyCheckpointQuery: true` is passed explicitly for
+  an intentional uncheckpointed prune.
 
 ## Scope boundary
 
 Retention does not change append-order semantics, checkpoint meaning, or live
 runtime recovery semantics. It coordinates durable stored-artifact pruning only.
+The retention/write lock guarantee applies to package filesystem writers that
+use `NdjsonReplayWriter`; external processes that bypass this package must not
+write `artifacts.ndjson` during pruning.

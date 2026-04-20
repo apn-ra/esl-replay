@@ -21,18 +21,23 @@ implemented explicitly above the storage layer and documented as such.
 
 The checksum field is an integrity marker only.
 
-It proves that a stored record's artifact fields have not been corrupted since write time.
-It does not participate in deduplication semantics.
+It can prove that a stored record's canonical artifact fields still match the
+checksum computed at write time when a consumer explicitly verifies it. It does
+not participate in deduplication semantics.
 
 **Canonical form for checksum computation:**
 - Fields included: `artifact_version`, `artifact_name`, `capture_timestamp`, `payload`
+- Fields excluded: storage metadata (`id`, `stored_at`, `append_sequence`, `tags`),
+  operator identity fields, and other derived/read-optimization fields
 - Payload keys are sorted recursively before encoding (for determinism regardless of insertion order)
 - Encoded as JSON with `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`
 - Algorithm: SHA-256
 
 **Verification:** `ArtifactChecksum::verify(StoredReplayRecord)` returns `true` when the
 stored checksum matches a freshly computed checksum over the record's artifact fields.
-Readers may call this at read time to detect storage corruption.
+Normal `readFromCursor()` and `readById()` paths do not call this automatically.
+Consumers that need integrity checking must call `ArtifactChecksum::verify()`
+on returned records and decide how to handle a mismatch.
 
 ## Ordering
 
@@ -73,6 +78,11 @@ On process restart:
 - The filesystem adapter scans the artifact file to recover the last append sequence.
 - New writes continue from the recovered sequence + 1.
 - Reads resume correctly from any saved `ReplayReadCursor` position.
+- An existing artifact file that cannot be opened during sequence recovery fails
+  construction explicitly instead of being treated as an empty stream.
+- Only one package filesystem writer may own a storage path at a time, so two
+  package writers cannot recover the same tail and emit overlapping append
+  sequences concurrently.
 
 Partial writes (e.g. from a crash mid-line) are automatically skipped by the
 deserializer, which reads only complete well-formed JSON lines.

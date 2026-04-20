@@ -14,9 +14,6 @@
         <testsuite name="Integration">
             <directory>tests/Integration</directory>
         </testsuite>
-        <testsuite name="Fixtures">
-            <directory>tests/Fixtures</directory>
-        </testsuite>
     </testsuites>
     <source>
         <include>

@@ -4,54 +4,51 @@ All notable changes to `apntalk/esl-replay` are documented here.
 
 ## [Unreleased]
 
-## [0.9.0-rc1] — Release Candidate
+## [0.9.3-rc1] — Release Candidate
 
-Release-candidate cut for the current audited replay platform surface.
+Release-candidate cut for the completed filesystem, retention, checkpoint,
+checksum, and public-contract hardening work.
 
-Highlights:
-- deterministic artifact storage and append-ordered reads
-- bounded reader filtering by time window, artifact name, job UUID, replay session,
-  PBX node, worker session, session id, and connection generation
-- checkpointed persisted-artifact progress recovery
-- handler-driven offline replay
-- filesystem-backed retention coordination
-- SQLite contract parity with the filesystem store contract
-- guarded optional re-injection as a secondary, higher-risk mode
-- hardening plus aggressive chaos coverage across corruption, restart, pruning, and guard-policy paths
+### Highlights
 
-Late-cycle hostile-path fixes included in this RC:
+- fail-closed empty-checkpoint prune query handling with explicit opt-in for
+  intentional uncheckpointed pruning
+- collision-safe filesystem checkpoint filenames using deterministic hashes,
+  with legacy lookup compatibility
+- filesystem retention/write coordination through `artifacts.ndjson.lock`
+- package-level filesystem single-writer ownership through
+  `artifacts.ndjson.writer.lock`
+- consumer-invoked checksum verification semantics and stable
+  `OperatorIdentityKeys` contract constants
+- fail-loud sequence recovery when an existing `artifacts.ndjson` cannot be opened
+
+### Release-Facing Fixes
+
 - stale filesystem `byteOffsetHint` past EOF no longer hides valid readable records
 - filesystem retention/rewrite now fails explicitly on malformed retained input
 - reinjection injector exceptions now return failed replay results with partial outcomes
+- Checksum verification is documented as consumer-invoked via
+  `ArtifactChecksum::verify()`; ordinary reads do not verify checksums by default
+- `StorageConfig::storagePath` docs now distinguish filesystem directory paths
+  from SQLite/database file paths
+- Checkpoint query pruning now fails closed when a query resolves zero active
+  checkpoints unless `allowEmptyCheckpointQuery: true` is passed explicitly
+- Filesystem retention rewrite now coordinates with package filesystem writers
+  via `artifacts.ndjson.lock` and fails closed when that lock is held
+- Filesystem sequence recovery now fails explicitly when an existing
+  `artifacts.ndjson` cannot be opened, avoiding accidental sequence reuse
+- Filesystem write-capable stores now enforce single package writer ownership
+  via `artifacts.ndjson.writer.lock`
+- Published `OperatorIdentityKeys` as the stable cross-package contract for
+  `replay_session_id`, `pbx_node_slug`, and `worker_session_id`
+- PHPUnit suite configuration and Composer/archive metadata were cleaned up for
+  release packaging
 
-Not in this RC:
+### Not In This RC
+
 - PostgreSQL support
 - non-filesystem retention backends
 - live runtime/session restoration semantics
-
-- Phase 7: explicit offline replay handler dispatch via `ReplayRecordHandlerInterface`
-  and `ReplayHandlerRegistry`
-- Dry-run replay reporting now indicates whether a matching handler would be
-  dispatched without invoking handlers
-- Handler execution failures now return failed `OfflineReplayResult` values
-  instead of silently succeeding
-- Phase 8: explicit filesystem retention coordination via `CheckpointAwarePruner`,
-  `PrunePolicy`, `RetentionPlan`, and `RetentionResult`
-- Active checkpoint compatibility is now validated before pruning via
-  `CheckpointCompatibilityValidator`
-- Retention now supports conservative age- and size-based ordered-prefix pruning
-  with protected record windows
-- Phase 9: SQLite replay artifact store with the same append-order, cursor, and
-  bounded-reader semantics as the filesystem adapter
-- Added cross-adapter contract tests covering filesystem and SQLite parity
-- Phase 10: guarded optional re-injection via `ReplayInjectorInterface`,
-  `ReplayExecutionCandidate`, `InjectionGuard`, `ArtifactExecutabilityClassifier`,
-  and `InjectionResult`
-- Re-injection is now explicit, allowlist-based, dry-run capable, and rejects
-  observational artifacts clearly
-- Phase 11: hardening and API freeze audit with large-stream adapter coverage,
-  checkpoint stress coverage, offline replay determinism checks, and explicit
-  SQLite corruption failure coverage
 
 ## [0.3.0] — Checkpointed Progress Recovery
 

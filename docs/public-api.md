@@ -4,8 +4,9 @@ This document describes the stable public surface of `apntalk/esl-replay`.
 
 ## Stability policy
 
-Only contracts, config objects, DTOs, and entry points listed here are stable.
-Everything else is internal and may change without notice.
+Only contracts, config objects, DTOs, documented utilities, and entry points
+listed here are stable. Everything else is internal and may change without
+notice.
 
 See `docs/stability-policy.md` for the full stability contract.
 
@@ -138,7 +139,7 @@ public function inject(ReplayExecutionCandidate $candidate): InjectionResult;
 | Class | Description |
 |---|---|
 | `ReplayConfig` | Top-level config: composes StorageConfig, CheckpointConfig, ExecutionConfig |
-| `StorageConfig` | Storage path and adapter selection (`filesystem`, `sqlite`, or compatibility alias `database`) |
+| `StorageConfig` | Storage path and adapter selection. Filesystem uses a directory path; SQLite/database uses a database file path. |
 | `CheckpointConfig` | Checkpoint storage path and key |
 | `ExecutionConfig` | Dry-run flag, guarded re-injection allowlist, batch limit |
 
@@ -184,6 +185,24 @@ This criteria object is intentionally bounded. It supports inclusive capture-tim
 windows and exact matching on a small set of stored record fields, including
 `replay_session_id` and selected runtime metadata fields. It is not a general
 query DSL.
+
+`OperatorIdentityKeys` publishes the stable key names shared with artifact
+producers and checkpoint metadata:
+- `OperatorIdentityKeys::REPLAY_SESSION_ID` = `replay_session_id`
+- `OperatorIdentityKeys::PBX_NODE_SLUG` = `pbx_node_slug`
+- `OperatorIdentityKeys::WORKER_SESSION_ID` = `worker_session_id`
+
+`replay_session_id` is expected in `correlation_ids` and may be read from
+`runtime_flags` as a fallback for derived inspection. `pbx_node_slug` and
+`worker_session_id` are expected in `runtime_flags`.
+
+### `ArtifactChecksum`
+
+`ArtifactChecksum::verify(StoredReplayRecord $record): bool` is the supported
+consumer-invoked checksum verification helper. Ordinary `readFromCursor()` and
+`readById()` calls do not verify checksums automatically. The checksum covers
+only `artifact_version`, `artifact_name`, `capture_timestamp`, and `payload`;
+it excludes storage metadata, operator identity metadata, and derived fields.
 
 ### `ReplayCheckpointRepository`
 
@@ -242,10 +261,19 @@ This retention surface is conservative and filesystem-backed in the current
 release. It prunes only an ordered prefix, validates checkpoint compatibility
 before pruning, never silently invalidates active checkpoints, and fails
 explicitly if malformed retained input is discovered during rewrite planning.
+Filesystem pruning also coordinates with package filesystem writers through the
+`artifacts.ndjson.lock` sibling lock and fails closed if that lock is already
+held.
+
+Filesystem write-capable stores also enforce single package writer ownership
+through `artifacts.ndjson.writer.lock`. A second package filesystem writer/store
+for the same storage path fails closed while the first owner is active.
 
 It also supports bounded checkpoint-driven planning/pruning by resolving active
 checkpoints through `ReplayCheckpointInspectorInterface` plus
-`ReplayCheckpointCriteria`.
+`ReplayCheckpointCriteria`. A checkpoint query that resolves no checkpoints
+fails closed unless `allowEmptyCheckpointQuery: true` is passed explicitly for
+an intentional uncheckpointed prune.
 
 ## Stable guarded re-injection surface
 
@@ -267,13 +295,23 @@ PostgreSQL is not part of the current stable surface.
 The interface that artifacts emitted by `apntalk/esl-react` must implement.
 This is the boundary between the live runtime layer and the durable storage layer.
 
+### `OperatorIdentityKeys`
+
+Stable cross-package constants for replay operator identity metadata:
+- `REPLAY_SESSION_ID` maps to `replay_session_id`
+- `PBX_NODE_SLUG` maps to `pbx_node_slug`
+- `WORKER_SESSION_ID` maps to `worker_session_id`
+
+Use these keys when producing or inspecting `correlation_ids`, `runtime_flags`,
+and checkpoint metadata that should participate in bounded replay inspection.
+
 ## Not part of the stable public API
 
 These are internal and may change:
 
 - `NdjsonReplayWriter` / `NdjsonReplayReader` / `FilesystemReplayArtifactStore`
 - `SqliteReplayArtifactStore`
-- `ReplayArtifactSerializer` / `ArtifactChecksum` / `StoredReplayRecordFactory`
+- `ReplayArtifactSerializer` / `StoredReplayRecordFactory`
 - `FilesystemCheckpointStore`
 - Any internal criteria-matching helpers or adapter indexing internals
 - Future retention worker orchestration beyond the current explicit pruner

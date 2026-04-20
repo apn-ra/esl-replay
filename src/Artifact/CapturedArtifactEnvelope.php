@@ -66,6 +66,8 @@ interface CapturedArtifactEnvelope
 
     /**
      * Correlation identifiers that link this artifact to related artifacts.
+     * Operator identity keys shared with esl-react are published in
+     * OperatorIdentityKeys.
      *
      * @return array<string, string>
      */
@@ -73,6 +75,8 @@ interface CapturedArtifactEnvelope
 
     /**
      * Runtime flags recorded by esl-react at capture time.
+     * Operator identity keys shared with esl-react are published in
+     * OperatorIdentityKeys.
      *
      * @return array<string, mixed>
      */

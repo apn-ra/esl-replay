@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Apntalk\EslReplay\Tests\Integration\Filesystem;
 
 use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
+use Apntalk\EslReplay\Artifact\OperatorIdentityKeys;
 use Apntalk\EslReplay\Config\ReplayConfig;
 use Apntalk\EslReplay\Config\StorageConfig;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
+use Apntalk\EslReplay\Exceptions\ArtifactPersistenceException;
 use Apntalk\EslReplay\Read\ReplayReadCriteria;
 use Apntalk\EslReplay\Serialization\ArtifactChecksum;
 use Apntalk\EslReplay\Storage\ReplayArtifactStore;
@@ -131,6 +133,7 @@ final class AppendReadResumeTest extends TestCase
         $store1->write(FakeCapturedArtifact::apiDispatch());
         $store1->write(FakeCapturedArtifact::eventRaw());
         $store1->write(FakeCapturedArtifact::bgapiDispatch());
+        unset($store1);
 
         // Second process (new store instance, same directory): write 1 more
         $store2 = new FilesystemReplayArtifactStore($this->tmpDir);
@@ -141,6 +144,53 @@ final class AppendReadResumeTest extends TestCase
         $this->assertSame(4, $record4->appendSequence);
     }
 
+    public function test_second_filesystem_writer_for_same_path_fails_closed_while_owner_is_active(): void
+    {
+        $owner = new FilesystemReplayArtifactStore($this->tmpDir);
+        $owner->write(FakeCapturedArtifact::apiDispatch());
+
+        $this->expectException(ArtifactPersistenceException::class);
+        $this->expectExceptionMessage('another package writer already owns this artifact stream');
+
+        new FilesystemReplayArtifactStore($this->tmpDir);
+    }
+
+    public function test_filesystem_writer_ownership_is_released_when_owner_lifecycle_ends(): void
+    {
+        $owner = new FilesystemReplayArtifactStore($this->tmpDir);
+        $owner->write(FakeCapturedArtifact::apiDispatch());
+        unset($owner);
+
+        $nextOwner = new FilesystemReplayArtifactStore($this->tmpDir);
+        $id = $nextOwner->write(FakeCapturedArtifact::eventRaw());
+        $record = $nextOwner->readById($id);
+
+        $this->assertNotNull($record);
+        $this->assertSame(2, $record->appendSequence);
+    }
+
+    public function test_existing_unreadable_artifact_file_fails_sequence_recovery(): void
+    {
+        $artifactPath = $this->tmpDir . '/artifacts.ndjson';
+        file_put_contents($artifactPath, "existing stream\n");
+        chmod($artifactPath, 0000);
+        clearstatcache(true, $artifactPath);
+
+        if (is_readable($artifactPath)) {
+            chmod($artifactPath, 0644);
+            $this->markTestSkipped('Current filesystem permits reading chmod 0000 files.');
+        }
+
+        $this->expectException(ArtifactPersistenceException::class);
+        $this->expectExceptionMessage('failed to open existing artifact file for sequence recovery');
+
+        try {
+            new FilesystemReplayArtifactStore($this->tmpDir);
+        } finally {
+            chmod($artifactPath, 0644);
+        }
+    }
+
     public function test_restart_can_read_all_previously_written_records(): void
     {
         // Write 3 records in first instance
@@ -148,6 +198,7 @@ final class AppendReadResumeTest extends TestCase
         $store1->write(FakeCapturedArtifact::apiDispatch());
         $store1->write(FakeCapturedArtifact::eventRaw());
         $store1->write(FakeCapturedArtifact::bgapiDispatch());
+        unset($store1);
 
         // Read from a fresh store instance (simulates process restart)
         $store2  = new FilesystemReplayArtifactStore($this->tmpDir);
@@ -169,6 +220,32 @@ final class AppendReadResumeTest extends TestCase
                 "Checksum verification failed for record {$record->id}",
             );
         }
+    }
+
+    public function test_normal_reads_return_tampered_records_and_checksum_verification_is_consumer_invoked(): void
+    {
+        $store = new FilesystemReplayArtifactStore($this->tmpDir);
+        $store->write(FakeCapturedArtifact::apiDispatch());
+
+        $artifactPath = $this->tmpDir . '/artifacts.ndjson';
+        $lines = file($artifactPath, FILE_IGNORE_NEW_LINES);
+        $this->assertIsArray($lines);
+        $this->assertCount(1, $lines);
+
+        /** @var array<string, mixed> $stored */
+        $stored = json_decode($lines[0], true, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsArray($stored);
+        $stored['payload'] = ['command' => 'tampered'];
+        file_put_contents(
+            $artifactPath,
+            json_encode($stored, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n",
+        );
+
+        $records = $store->readFromCursor($store->openCursor(), 10);
+
+        $this->assertCount(1, $records);
+        $this->assertSame(['command' => 'tampered'], $records[0]->payload);
+        $this->assertFalse(ArtifactChecksum::verify($records[0]));
     }
 
     public function test_payload_is_preserved_exactly_through_storage(): void
@@ -297,9 +374,9 @@ final class AppendReadResumeTest extends TestCase
     public function test_read_from_cursor_can_filter_by_replay_session_id(): void
     {
         $store = new FilesystemReplayArtifactStore($this->tmpDir);
-        $store->write(new FakeCapturedArtifact(correlationIds: ['replay_session_id' => 'replay-a']));
-        $store->write(new FakeCapturedArtifact(correlationIds: ['replay_session_id' => 'replay-b']));
-        $store->write(new FakeCapturedArtifact(correlationIds: ['replay_session_id' => 'replay-a']));
+        $store->write(new FakeCapturedArtifact(correlationIds: [OperatorIdentityKeys::REPLAY_SESSION_ID => 'replay-a']));
+        $store->write(new FakeCapturedArtifact(correlationIds: [OperatorIdentityKeys::REPLAY_SESSION_ID => 'replay-b']));
+        $store->write(new FakeCapturedArtifact(correlationIds: [OperatorIdentityKeys::REPLAY_SESSION_ID => 'replay-a']));
 
         $records = $store->readFromCursor(
             $store->openCursor(),
@@ -315,16 +392,16 @@ final class AppendReadResumeTest extends TestCase
     {
         $store = new FilesystemReplayArtifactStore($this->tmpDir);
         $store->write(new FakeCapturedArtifact(runtimeFlags: [
-            'pbx_node_slug' => 'pbx-a',
-            'worker_session_id' => 'worker-a',
+            OperatorIdentityKeys::PBX_NODE_SLUG => 'pbx-a',
+            OperatorIdentityKeys::WORKER_SESSION_ID => 'worker-a',
         ]));
         $store->write(new FakeCapturedArtifact(runtimeFlags: [
-            'pbx_node_slug' => 'pbx-b',
-            'worker_session_id' => 'worker-b',
+            OperatorIdentityKeys::PBX_NODE_SLUG => 'pbx-b',
+            OperatorIdentityKeys::WORKER_SESSION_ID => 'worker-b',
         ]));
         $store->write(new FakeCapturedArtifact(runtimeFlags: [
-            'pbx_node_slug' => 'pbx-a',
-            'worker_session_id' => 'worker-a',
+            OperatorIdentityKeys::PBX_NODE_SLUG => 'pbx-a',
+            OperatorIdentityKeys::WORKER_SESSION_ID => 'worker-a',
         ]));
 
         $records = $store->readFromCursor(

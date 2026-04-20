@@ -88,4 +88,25 @@ final class RetentionChaosTest extends TestCase
 
         (new CheckpointAwarePruner($this->tmpDir))->prune([], new PrunePolicy(maxStreamBytes: 1));
     }
+
+    public function test_prune_fails_closed_when_artifact_coordination_lock_is_held(): void
+    {
+        $store = $this->makeStore();
+        $store->write(FakeCapturedArtifact::apiDispatch());
+        $store->write(FakeCapturedArtifact::eventRaw());
+
+        $lockHandle = fopen($this->artifactFile . '.lock', 'c');
+        $this->assertIsResource($lockHandle);
+        $this->assertTrue(flock($lockHandle, LOCK_EX));
+
+        try {
+            $this->expectException(RetentionException::class);
+            $this->expectExceptionMessage('artifact coordination lock is held');
+
+            (new CheckpointAwarePruner($this->tmpDir))->prune([], new PrunePolicy(maxStreamBytes: 1));
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+        }
+    }
 }

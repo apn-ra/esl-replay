@@ -30,7 +30,7 @@ final class CheckpointAwarePrunerTest extends TestCase
         $found = glob($this->tmpDir . '/*');
         $files = $found !== false ? $found : [];
         foreach ($files as $file) {
-            @unlink($file);
+            $this->removePath($file);
         }
         @rmdir($this->tmpDir);
     }
@@ -38,6 +38,22 @@ final class CheckpointAwarePrunerTest extends TestCase
     private function makeStore(): FilesystemReplayArtifactStore
     {
         return new FilesystemReplayArtifactStore($this->tmpDir);
+    }
+
+    private function removePath(string $path): void
+    {
+        if (is_dir($path) && !is_link($path)) {
+            $found = glob($path . '/*');
+            $children = $found !== false ? $found : [];
+            foreach ($children as $child) {
+                $this->removePath($child);
+            }
+            @rmdir($path);
+
+            return;
+        }
+
+        @unlink($path);
     }
 
     public function test_prune_by_age_does_not_prune_beyond_oldest_active_checkpoint(): void
@@ -160,6 +176,43 @@ final class CheckpointAwarePrunerTest extends TestCase
 
         $this->assertSame([1, 2], $plan->prunedSequences);
         $this->assertSame(2, $plan->checkpointFloorSequence);
+    }
+
+    public function test_plan_for_checkpoint_query_fails_closed_when_query_matches_no_checkpoints(): void
+    {
+        $store = $this->makeStore();
+        $store->write(FakeCapturedArtifact::apiDispatch('sess-1'));
+
+        $checkpointStore = new FilesystemCheckpointStore($this->tmpDir . '/checkpoints');
+
+        $this->expectException(RetentionException::class);
+        $this->expectExceptionMessage('checkpoint query matched no active checkpoints');
+
+        (new CheckpointAwarePruner($this->tmpDir))->planForCheckpointQuery(
+            $checkpointStore,
+            new ReplayCheckpointCriteria(replaySessionId: 'missing-replay-session'),
+            new PrunePolicy(maxStreamBytes: 0),
+        );
+    }
+
+    public function test_prune_for_checkpoint_query_requires_explicit_empty_query_opt_in_and_keeps_protected_window(): void
+    {
+        $store = $this->makeStore();
+        for ($i = 0; $i < 5; $i++) {
+            $store->write(FakeCapturedArtifact::apiDispatch("sess-{$i}"));
+        }
+
+        $checkpointStore = new FilesystemCheckpointStore($this->tmpDir . '/checkpoints');
+        $result = (new CheckpointAwarePruner($this->tmpDir))->pruneForCheckpointQuery(
+            $checkpointStore,
+            new ReplayCheckpointCriteria(replaySessionId: 'missing-replay-session'),
+            new PrunePolicy(maxStreamBytes: 0, protectedRecordCount: 2),
+            allowEmptyCheckpointQuery: true,
+        );
+
+        $this->assertSame([1, 2, 3], $result->plan->prunedSequences);
+        $this->assertSame(4, $result->plan->retainedFirstSequence);
+        $this->assertNull($result->plan->checkpointFloorSequence);
     }
 
     public function test_plan_reports_truthful_empty_result_for_empty_stream(): void
