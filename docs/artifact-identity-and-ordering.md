@@ -87,6 +87,20 @@ On process restart:
 Partial writes (e.g. from a crash mid-line) are automatically skipped by the
 deserializer, which reads only complete well-formed JSON lines.
 
+## Recovery/evidence ordering rule
+
+The recovery/evidence engine uses the same append-sequence ordering model as
+ordinary reads and checkpoints:
+
+- reconstruction windows begin at a `ReplayReadCursor`
+- reconstruction consumes stored records in append-sequence order
+- comparison and exported evidence bundles preserve that order
+- richer runtime metadata does not create a second ordering model
+
+This is why bounded runtime truth in this package is auditable: the evidence
+engine reconstructs from the same deterministic ordered stream that ordinary
+readers and checkpoint resume use.
+
 ## What ordering does NOT guarantee
 
 - The ordering does not imply global wall-clock time ordering if artifacts from

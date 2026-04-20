@@ -17,6 +17,7 @@ final readonly class ReplayCheckpointCriteria
         public readonly ?string $jobUuid = null,
         public readonly ?string $pbxNodeSlug = null,
         public readonly ?string $workerSessionId = null,
+        public readonly ?string $recoveryGenerationId = null,
         public readonly int $limit = 100,
     ) {
         foreach ([
@@ -24,6 +25,7 @@ final readonly class ReplayCheckpointCriteria
             'jobUuid' => $this->jobUuid,
             'pbxNodeSlug' => $this->pbxNodeSlug,
             'workerSessionId' => $this->workerSessionId,
+            'recoveryGenerationId' => $this->recoveryGenerationId,
         ] as $field => $value) {
             if ($value !== null && trim($value) === '') {
                 throw new \InvalidArgumentException("ReplayCheckpointCriteria: {$field} must not be empty when provided.");
@@ -35,6 +37,7 @@ final readonly class ReplayCheckpointCriteria
             && $this->jobUuid === null
             && $this->pbxNodeSlug === null
             && $this->workerSessionId === null
+            && $this->recoveryGenerationId === null
         ) {
             throw new \InvalidArgumentException(
                 'ReplayCheckpointCriteria: at least one checkpoint identity field must be provided.',

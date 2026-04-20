@@ -23,6 +23,7 @@ final readonly class ReplayCheckpointReference
         public readonly ?string $jobUuid = null,
         public readonly ?string $pbxNodeSlug = null,
         public readonly ?string $workerSessionId = null,
+        public readonly ?string $recoveryGenerationId = null,
         public readonly array $metadata = [],
     ) {
         if (trim($this->key) === '') {
@@ -34,6 +35,7 @@ final readonly class ReplayCheckpointReference
             'jobUuid' => $this->jobUuid,
             'pbxNodeSlug' => $this->pbxNodeSlug,
             'workerSessionId' => $this->workerSessionId,
+            'recoveryGenerationId' => $this->recoveryGenerationId,
         ] as $field => $value) {
             if ($value !== null && trim($value) === '') {
                 throw new \InvalidArgumentException("ReplayCheckpointReference: {$field} must not be empty when provided.");
@@ -51,6 +53,7 @@ final readonly class ReplayCheckpointReference
             'job_uuid' => $this->jobUuid,
             OperatorIdentityKeys::PBX_NODE_SLUG => $this->pbxNodeSlug,
             OperatorIdentityKeys::WORKER_SESSION_ID => $this->workerSessionId,
+            \Apntalk\EslReplay\Recovery\RecoveryMetadataKeys::RECOVERY_GENERATION_ID => $this->recoveryGenerationId,
         ], static fn (mixed $value): bool => $value !== null));
     }
 }

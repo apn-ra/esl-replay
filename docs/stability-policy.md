@@ -38,16 +38,32 @@ The following are stable and will not change in a breaking way within a minor ve
 - `ReplayExecutionCandidate`
 - `InjectionGuard`
 - `InjectionResult`
+- `RecoveryMetadataKeys`
+- `ReconstructionWindow`
+- `RecoveryManifest`
+- `RuntimeContinuitySnapshot`
+- `OperationRecoveryRecord`
+- `TerminalPublicationEvidenceRecord`
+- `LifecycleSemanticEvidenceRecord`
+- `EvidenceRecordReference`
+- `EvidenceBundle`
+- `ScenarioExpectation`
+- `ExpectedOperationLifecycle`
+- `ExpectedTerminalPublication`
+- `ExpectedLifecycleSemantic`
+- `ScenarioComparisonResult`
 
 **Entry points:**
 - `ReplayArtifactStore::make(ReplayConfig $config): ReplayArtifactStoreInterface`
 - `OfflineReplayExecutor::make(ExecutionConfig $config, ReplayArtifactReaderInterface $reader): OfflineReplayExecutorInterface`
+- `RecoveryEvidenceEngine::make(ReplayArtifactReaderInterface $reader): RecoveryEvidenceEngine`
 - `FilesystemCheckpointStore::make(CheckpointConfig $config): FilesystemCheckpointStore`
 - `CheckpointAwarePruner`
 - `CheckpointCompatibilityValidator`
 - `ReplayCheckpointRepository`
 - `ReplayCheckpointService`
 - `ExecutionResumeState`
+- `CheckpointReconstructionWindowResolver`
 
 **Input contract:**
 - `CapturedArtifactEnvelope`
@@ -83,6 +99,7 @@ This audit covers:
 - checkpoint save/load/restart semantics
 - offline replay planning, handler dispatch, and guarded re-injection
 - explicit filesystem retention coordination
+- deterministic recovery/evidence reconstruction and scenario comparison over stored artifacts
 
 Concrete adapter classes remain internal. The stable API continues to be the
 contracts, DTOs, config objects, and documented entry points listed above.
@@ -100,13 +117,14 @@ contracts, DTOs, config objects, and documented entry points listed above.
 | 0.7.0 | SQL adapters |
 | 0.8.0 | Optional controlled re-injection |
 | 0.9.0 | Hardening |
+| 0.9.4 | Recovery/evidence engine over stored artifacts |
 | 1.0.0 | Stable replay platform (planned) |
 
 ## RC posture
 
-The current release-cut posture is `v0.9.3-rc1`, not a final patch release,
-because filesystem, retention, checkpoint, checksum, and public-contract
-hardening changed late in cycle and should ship through an RC first.
+The current release-cut posture is `v0.9.4-rc1`, not a final patch release,
+because the new recovery/evidence engine adds additive public DTOs and
+deterministic bundle/comparison surfaces that should ship through an RC first.
 
 ## Breaking change policy
 

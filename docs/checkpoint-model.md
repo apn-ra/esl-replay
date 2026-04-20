@@ -92,8 +92,9 @@ $matches = $repository->find(new ReplayCheckpointCriteria(
 ```
 
 Checkpoint lookup remains intentionally narrow: exact-match filters only over
-`replay_session_id`, `job_uuid`, `pbx_node_slug`, and `worker_session_id`.
-It is not a general checkpoint search API.
+`replay_session_id`, `job_uuid`, `pbx_node_slug`, `worker_session_id`, and the
+additive recovery/evidence anchor `recovery_generation_id`. It is not a general
+checkpoint search API.
 
 ## Filesystem checkpoint persistence
 
@@ -118,6 +119,21 @@ and `CheckpointAwarePruner`. Before pruning, active checkpoints are validated
 against the currently retained stream. If the stream already starts after the
 next sequence a checkpoint would need, retention fails explicitly via
 `RetentionException`.
+
+## Reconstruction windows from checkpoints
+
+`CheckpointReconstructionWindowResolver` can derive a bounded reconstruction
+window from a persisted checkpoint for recovery/evidence work.
+
+This helper:
+
+- keeps the checkpoint boundary unchanged: artifact-processing progress only
+- carries forward checkpoint identity metadata such as `replay_session_id` and
+  `recovery_generation_id`
+- fails closed if checkpoint identity metadata contradicts the next stored
+  records visible from that cursor
+
+It does **not** restore a live runtime or prove live continuity after restart.
 
 ## Key sanitisation
 

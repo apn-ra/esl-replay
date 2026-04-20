@@ -10,6 +10,7 @@ use Apntalk\EslReplay\Contracts\ReplayCheckpointInspectorInterface;
 use Apntalk\EslReplay\Contracts\ReplayCheckpointStoreInterface;
 use Apntalk\EslReplay\Cursor\ReplayReadCursor;
 use Apntalk\EslReplay\Exceptions\CheckpointException;
+use Apntalk\EslReplay\Recovery\RecoveryMetadataKeys;
 
 /**
  * Filesystem-backed checkpoint store.
@@ -309,6 +310,13 @@ final class FilesystemCheckpointStore implements ReplayCheckpointStoreInterface,
         if (
             $criteria->workerSessionId !== null
             && ($checkpoint->metadata[OperatorIdentityKeys::WORKER_SESSION_ID] ?? null) !== $criteria->workerSessionId
+        ) {
+            return false;
+        }
+
+        if (
+            $criteria->recoveryGenerationId !== null
+            && ($checkpoint->metadata[RecoveryMetadataKeys::RECOVERY_GENERATION_ID] ?? null) !== $criteria->recoveryGenerationId
         ) {
             return false;
         }

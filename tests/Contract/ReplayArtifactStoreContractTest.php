@@ -8,6 +8,9 @@ use Apntalk\EslReplay\Adapter\Filesystem\FilesystemReplayArtifactStore;
 use Apntalk\EslReplay\Adapter\Sqlite\SqliteReplayArtifactStore;
 use Apntalk\EslReplay\Contracts\ReplayArtifactStoreInterface;
 use Apntalk\EslReplay\Read\ReplayReadCriteria;
+use Apntalk\EslReplay\Recovery\RecoveryEvidenceEngine;
+use Apntalk\EslReplay\Recovery\RecoveryMetadataKeys;
+use Apntalk\EslReplay\Recovery\ReconstructionWindow;
 use Apntalk\EslReplay\Tests\Fixtures\FakeCapturedArtifact;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -136,6 +139,51 @@ final class ReplayArtifactStoreContractTest extends TestCase
         );
 
         $this->assertSame([1, 3], array_map(static fn ($record) => $record->appendSequence, $records));
+    }
+
+    #[DataProvider('storeProvider')]
+    public function test_enriched_runtime_truth_roundtrips_into_deterministic_reconstruction(string $adapter): void
+    {
+        $store = $this->makeStore($adapter);
+        $store->write(FakeCapturedArtifact::enriched(
+            artifactName: 'bgapi.dispatch',
+            captureTimestamp: new \DateTimeImmutable('2024-01-15T10:00:00+00:00'),
+            sessionId: 'sess-1',
+            jobUuid: 'job-1',
+            preparedRecoveryContext: [RecoveryMetadataKeys::RECOVERY_GENERATION_ID => 'gen-1'],
+            runtimeRecoverySnapshot: [
+                RecoveryMetadataKeys::REPLAY_CONTINUITY_POSTURE => 'continuous',
+            ],
+            runtimeOperationSnapshot: [
+                RecoveryMetadataKeys::OPERATION_ID => 'op-1',
+                RecoveryMetadataKeys::OPERATION_STATE => 'accepted',
+            ],
+            correlationIds: ['replay_session_id' => 'replay-1'],
+        ));
+        $store->write(FakeCapturedArtifact::enriched(
+            artifactName: 'bgapi.complete',
+            captureTimestamp: new \DateTimeImmutable('2024-01-15T10:00:01+00:00'),
+            sessionId: 'sess-1',
+            jobUuid: 'job-1',
+            runtimeOperationSnapshot: [
+                RecoveryMetadataKeys::OPERATION_ID => 'op-1',
+                RecoveryMetadataKeys::OPERATION_STATE => 'completed',
+            ],
+            runtimeTerminalPublicationSnapshot: [
+                RecoveryMetadataKeys::TERMINAL_PUBLICATION_ID => 'pub-1',
+                RecoveryMetadataKeys::TERMINAL_PUBLICATION_STATUS => 'published',
+            ],
+            correlationIds: ['replay_session_id' => 'replay-1'],
+        ));
+
+        $bundle = RecoveryEvidenceEngine::make($store)->reconstruct(
+            new ReconstructionWindow($store->openCursor()),
+        );
+
+        $this->assertSame('complete', $bundle->manifest->verdict->posture);
+        $this->assertSame('gen-1', $bundle->continuitySnapshot->recoveryGenerations[0]->generationId);
+        $this->assertSame('completed', $bundle->operations[0]->finalState);
+        $this->assertSame('pub-1', $bundle->terminalPublications[0]->publicationId);
     }
 
     private function makeStore(string $adapter): ReplayArtifactStoreInterface

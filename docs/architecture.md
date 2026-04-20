@@ -8,7 +8,7 @@
 |---|---|
 | `apntalk/esl-core` | Protocol substrate, frame/event primitives, shared replay envelope vocabulary |
 | `apntalk/esl-react` | Live async runtime, connection/session supervision, replay artifact emission |
-| `apntalk/esl-replay` | Durable artifact persistence, deterministic reading, checkpointed progress recovery, offline replay |
+| `apntalk/esl-replay` | Durable artifact persistence, deterministic reading, checkpointed progress recovery, offline replay, bounded recovery/evidence reconstruction |
 | `apntalk/laravel-freeswitch-esl` | Laravel integration, application-facing wiring, operational control plane |
 
 `apntalk/esl-replay` sits above the live runtime layer and below application/framework integration.
@@ -21,6 +21,7 @@
 - Checkpointed replay progress (over stored artifacts)
 - Offline replay planning and execution
 - Export of stored artifact streams
+- Recovery/evidence manifests and deterministic reports reconstructed from stored artifacts
 
 ## What this package does NOT own
 
@@ -109,3 +110,22 @@ It does NOT mean:
 - recreating live runtime supervision state
 
 A checkpoint saves and restores the cursor position over stored artifact data only.
+
+## Recovery/evidence semantics
+
+This package may now reconstruct **bounded runtime truth** from stored artifacts
+for audit and recovery evidence. That means:
+
+- consume richer runtime-truth metadata already present in stored artifact
+  payloads, runtime flags, correlation ids, and checkpoint metadata
+- reconstruct deterministic recovery/evidence projections over append-ordered
+  stored records
+- compare reconstructed truth to scenario expectations
+- export deterministic JSON bundles and reports
+
+This still does **not** mean:
+
+- restoring a live FreeSWITCH socket
+- restoring a live ESL session
+- recreating live runtime supervision state
+- claiming live continuity after restart

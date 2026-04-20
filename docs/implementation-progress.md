@@ -14,8 +14,9 @@
   - Phase 9 — SQL adapters
   - Phase 10 — optional controlled re-injection
   - Phase 11 — hardening and API freeze
+  - Phase 12 — recovery/evidence engine
 - Current phase:
-  - None — all planned phases are complete in the current repository state
+  - None — the current post-hardening roadmap track is implemented in the repository state
 - Remaining phases:
   - None
 
@@ -27,6 +28,32 @@
 - Overstating adapter parity or API stability before tests and docs prove it
 
 ## Last completed phase
+
+### Phase 12 — recovery/evidence engine
+
+- Added deterministic recovery/evidence reconstruction over stored artifacts via:
+  - `RecoveryEvidenceEngine`
+  - `CheckpointReconstructionWindowResolver`
+  - additive recovery/evidence DTOs and deterministic JSON export surfaces
+- Added bounded reconstruction for richer runtime-truth metadata carried in:
+  - `payload`
+  - `runtime_flags`
+  - `correlation_ids`
+  - checkpoint metadata
+- Added generic SC19-style scenario comparison over:
+  - recovery generation sequence
+  - replay continuity posture
+  - operation lifecycle
+  - drain/retry posture
+  - terminal-publication evidence
+  - lifecycle-semantic evidence
+- Preserved `schema_version: 1`, append-order semantics, checkpoint boundary, and
+  stable existing entry points
+- Added unit, contract, and integration coverage across filesystem and SQLite
+- Acceptance result:
+  - Passed
+- Blockers:
+  - None
 
 ### Phase 11 — hardening and API freeze
 
@@ -46,8 +73,8 @@
 
 ## Next work
 
-1. No remaining implementation phases in the current roadmap.
-2. Current release-cut posture after hardening and RC prep is `v0.9.3-rc1`.
+1. Validate release-truth posture for the additive recovery/evidence surface before `1.0.0`.
+2. Current release-cut posture after recovery/evidence implementation is `v0.9.4-rc1`.
 
 ## Phase history
 

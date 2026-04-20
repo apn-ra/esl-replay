@@ -18,6 +18,10 @@ Primary use cases:
 - report generation
 - deterministic replay against analyzers or handlers
 
+Bounded recovery/evidence reconstruction now sits alongside offline replay as a
+separate stored-artifact workflow. It shares the same append-ordered records and
+cursor semantics, but it does not execute handlers or imply live recovery.
+
 ## Plan / execute pattern
 
 Offline replay uses a plan-then-execute pattern:
@@ -110,3 +114,15 @@ the failure.
 | Re-injection | Implemented as an explicit guarded mode |
 
 See `docs/stability-policy.md` for the implementation phase roadmap.
+
+## Relationship to recovery/evidence reconstruction
+
+`RecoveryEvidenceEngine` complements `OfflineReplayExecutor`:
+
+- `OfflineReplayExecutor` plans and executes observational or caller-supplied
+  handler/reinjection work over stored artifacts
+- `RecoveryEvidenceEngine` reconstructs bounded runtime truth, emits
+  deterministic evidence bundles, and compares them to scenario expectations
+
+Both operate only on stored artifacts. Neither restores a live FreeSWITCH or
+ESL runtime session.

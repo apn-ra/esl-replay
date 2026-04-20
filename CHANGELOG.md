@@ -4,6 +4,28 @@ All notable changes to `apntalk/esl-replay` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- additive recovery/evidence engine over stored artifacts through:
+  - `RecoveryEvidenceEngine`
+  - `CheckpointReconstructionWindowResolver`
+  - deterministic recovery/evidence DTOs and JSON export surfaces
+- bounded runtime-truth reconstruction for recovery generations, replay
+  continuity posture, retry/drain posture, operation lifecycle, terminal
+  publication evidence, and lifecycle-semantic evidence
+- SC19-style scenario comparison DTOs and deterministic comparator output
+- checkpoint identity anchors and lookup support for `recovery_generation_id`
+
+### Changed
+
+- documented `esl-replay` as the package-family durable recovery/evidence engine
+  over stored artifacts while preserving its existing no-live-runtime boundary
+- clarified that newer `esl-react` runtime-truth surfaces are consumed through
+  stored payload/runtime metadata without adding a hard package dependency
+- kept serialized artifact schema at `schema_version: 1`; richer runtime-truth
+  fields remain additive inside existing object fields such as `payload`,
+  `runtime_flags`, `correlation_ids`, and checkpoint metadata
+
 ## [0.9.3-rc1] — Release Candidate
 
 Release-candidate cut for the completed filesystem, retention, checkpoint,

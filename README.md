@@ -5,8 +5,8 @@ Durable replay artifact platform for FreeSWITCH ESL runtime output.
 ## What this package is
 
 `apntalk/esl-replay` provides durable storage, deterministic reads, restart-safe
-progress recovery, and offline replay for FreeSWITCH ESL artifacts emitted by
-`apntalk/esl-react`.
+progress recovery, offline replay, and bounded recovery/evidence reconstruction
+for FreeSWITCH ESL artifacts emitted by `apntalk/esl-react`.
 
 ## What this package is NOT
 
@@ -15,6 +15,7 @@ This package does not:
 - perform reconnect supervision
 - own live ESL session state
 - restore live runtime continuity after a process restart
+- own live socket/session continuity or reconnect supervision
 - execute business telephony logic
 - embed Laravel-specific persistence abstractions
 
@@ -26,7 +27,7 @@ See `docs/architecture.md` for the full boundary description.
 |---|---|
 | `apntalk/esl-core` | Protocol substrate, frame/event primitives, shared vocabulary |
 | `apntalk/esl-react` | Live async runtime, session supervision, artifact emission |
-| **`apntalk/esl-replay`** | **Durable storage, deterministic reads, checkpoints, offline replay** |
+| **`apntalk/esl-replay`** | **Durable storage, deterministic reads, checkpoints, offline replay, recovery/evidence reconstruction** |
 | `apntalk/laravel-freeswitch-esl` | Laravel integration and operational control plane |
 
 ## Requirements
@@ -219,6 +220,44 @@ $reinjectionExecutor = OfflineReplayExecutor::make(
 Offline replay operates only on stored artifacts. It does NOT require a live
 FreeSWITCH socket. Handler dispatch is explicit and bounded by exact artifact
 name matching; unhandled records remain observational.
+
+## Quick start: recovery evidence reconstruction
+
+```php
+use Apntalk\EslReplay\Checkpoint\ReplayCheckpointReference;
+use Apntalk\EslReplay\Recovery\CheckpointReconstructionWindowResolver;
+use Apntalk\EslReplay\Recovery\RecoveryEvidenceEngine;
+use Apntalk\EslReplay\Recovery\RecoveryMetadataKeys;
+
+$repository = new ReplayCheckpointRepository($checkpointStore);
+$checkpoint = $repository->save(
+    new ReplayCheckpointReference(
+        key: 'worker-a',
+        replaySessionId: 'replay-session-001',
+        recoveryGenerationId: 'generation-7',
+    ),
+    $cursor,
+);
+
+$resolver = new CheckpointReconstructionWindowResolver($store);
+$window = $resolver->resolve($checkpoint);
+
+$engine = RecoveryEvidenceEngine::make($store);
+$bundle = $engine->reconstruct($window);
+
+echo $bundle->manifest->bundleId . PHP_EOL;
+echo $bundle->manifest->verdict->posture . PHP_EOL;
+```
+
+Recovery/evidence reconstruction:
+- consumes stored artifacts only
+- preserves append-order semantics
+- reconstructs bounded runtime truth from stored payload/runtime metadata
+- emits deterministic machine-readable bundles and scenario comparisons
+- fails closed when stored artifacts are insufficient to support a bounded claim
+
+It does **not** restore a live ESL socket, live runtime supervision state, or
+session continuity after restart.
 
 ## Safety note on re-injection
 

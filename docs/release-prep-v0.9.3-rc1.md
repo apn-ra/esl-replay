@@ -5,6 +5,10 @@
 Prepare a release candidate cut for the completed hardening work on the current
 audited package surface.
 
+This document is historical for the hardening RC. The current release-prep
+target after adding bounded recovery/evidence reconstruction is
+`docs/release-prep-v0.9.4-rc1.md`.
+
 This RC covers:
 - fail-closed empty-checkpoint prune query behavior
 - collision-safe filesystem checkpoint filenames with legacy lookup compatibility

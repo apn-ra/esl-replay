@@ -64,6 +64,37 @@ columns, and checkpoint metadata created through `ReplayCheckpointReference`.
 They are additive identity metadata and are not included in checksum
 computation.
 
+## Richer runtime-truth surfaces within schema version 1
+
+`schema_version: 1` remains stable.
+
+Newer `esl-react` releases may emit richer runtime-truth surfaces such as:
+
+- prepared recovery context
+- runtime recovery snapshot
+- runtime operation snapshot
+- runtime terminal-publication snapshot
+- runtime lifecycle-semantic snapshot
+- enriched replay metadata
+
+`apntalk/esl-replay` consumes these through the existing object fields it
+already preserves exactly:
+
+- `payload`
+- `runtime_flags`
+- `correlation_ids`
+- checkpoint `metadata`
+
+No schema bump is required for these additive fields because:
+
+- the storage layer already preserves arbitrary object keys in these fields
+- append ordering does not change
+- checksum semantics do not change
+- readers that do not inspect the richer metadata remain compatible
+
+The recovery/evidence engine fails closed when these richer fields are absent or
+internally contradictory, rather than inventing missing runtime truth.
+
 ## Schema version rule
 
 When a reader encounters a `schema_version` other than the supported version,

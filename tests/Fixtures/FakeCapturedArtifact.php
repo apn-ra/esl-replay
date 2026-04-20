@@ -74,6 +74,52 @@ final class FakeCapturedArtifact implements CapturedArtifactEnvelope
         );
     }
 
+    /**
+     * Build an artifact carrying richer runtime-truth snapshots for recovery/evidence tests.
+     *
+     * @param array<string, mixed> $preparedRecoveryContext
+     * @param array<string, mixed> $runtimeRecoverySnapshot
+     * @param array<string, mixed> $runtimeOperationSnapshot
+     * @param array<string, mixed> $runtimeTerminalPublicationSnapshot
+     * @param array<string, mixed> $runtimeLifecycleSemanticSnapshot
+     * @param array<string, mixed> $replayMetadata
+     * @param array<string, mixed> $runtimeFlags
+     * @param array<string, string> $correlationIds
+     * @param array<string, mixed> $payload
+     */
+    public static function enriched(
+        string $artifactName,
+        \DateTimeImmutable $captureTimestamp,
+        ?string $sessionId = null,
+        ?string $jobUuid = null,
+        array $preparedRecoveryContext = [],
+        array $runtimeRecoverySnapshot = [],
+        array $runtimeOperationSnapshot = [],
+        array $runtimeTerminalPublicationSnapshot = [],
+        array $runtimeLifecycleSemanticSnapshot = [],
+        array $replayMetadata = [],
+        array $runtimeFlags = [],
+        array $correlationIds = [],
+        array $payload = [],
+    ): self {
+        return new self(
+            artifactName: $artifactName,
+            captureTimestamp: $captureTimestamp,
+            sessionId: $sessionId,
+            jobUuid: $jobUuid,
+            correlationIds: $correlationIds,
+            runtimeFlags: $runtimeFlags,
+            payload: array_filter([
+                'prepared_recovery_context' => $preparedRecoveryContext !== [] ? $preparedRecoveryContext : null,
+                'runtime_recovery_snapshot' => $runtimeRecoverySnapshot !== [] ? $runtimeRecoverySnapshot : null,
+                'runtime_operation_snapshot' => $runtimeOperationSnapshot !== [] ? $runtimeOperationSnapshot : null,
+                'runtime_terminal_publication_snapshot' => $runtimeTerminalPublicationSnapshot !== [] ? $runtimeTerminalPublicationSnapshot : null,
+                'runtime_lifecycle_semantic_snapshot' => $runtimeLifecycleSemanticSnapshot !== [] ? $runtimeLifecycleSemanticSnapshot : null,
+                'replay_metadata' => $replayMetadata !== [] ? $replayMetadata : null,
+            ], static fn (mixed $value): bool => $value !== null) + $payload,
+        );
+    }
+
     public function getArtifactVersion(): string
     {
         return $this->artifactVersion;

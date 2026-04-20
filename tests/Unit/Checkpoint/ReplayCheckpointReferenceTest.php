@@ -18,6 +18,7 @@ final class ReplayCheckpointReferenceTest extends TestCase
             jobUuid: 'job-1',
             pbxNodeSlug: 'pbx-a',
             workerSessionId: 'worker-a',
+            recoveryGenerationId: 'gen-1',
             metadata: ['attempt' => 2],
         );
 
@@ -27,6 +28,7 @@ final class ReplayCheckpointReferenceTest extends TestCase
             'job_uuid' => 'job-1',
             OperatorIdentityKeys::PBX_NODE_SLUG => 'pbx-a',
             OperatorIdentityKeys::WORKER_SESSION_ID => 'worker-a',
+            \Apntalk\EslReplay\Recovery\RecoveryMetadataKeys::RECOVERY_GENERATION_ID => 'gen-1',
         ], $reference->metadataWithIdentityAnchors());
     }
 

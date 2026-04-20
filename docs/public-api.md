@@ -63,6 +63,16 @@ OfflineReplayExecutor::make(
 ): OfflineReplayExecutorInterface
 ```
 
+### `RecoveryEvidenceEngine::make(ReplayArtifactReaderInterface $reader): RecoveryEvidenceEngine`
+
+Creates the bounded recovery/evidence reconstruction engine.
+
+```php
+use Apntalk\EslReplay\Recovery\RecoveryEvidenceEngine;
+
+$engine = RecoveryEvidenceEngine::make($store);
+```
+
 ## Stable contracts
 
 ### `ReplayArtifactStoreInterface`
@@ -134,6 +144,17 @@ public function plan(ReplayReadCursor $from): OfflineReplayPlan;
 public function execute(OfflineReplayPlan $plan): OfflineReplayResult;
 ```
 
+### `CheckpointReconstructionWindowResolver`
+
+```php
+$resolver = new CheckpointReconstructionWindowResolver($store);
+$window = $resolver->resolve($checkpoint);
+```
+
+This helper resolves bounded reconstruction windows from persisted checkpoints
+and fails closed when checkpoint identity metadata contradicts the next stored
+artifacts visible in that window.
+
 ### `ReplayRecordHandlerInterface`
 
 ```php
@@ -176,6 +197,19 @@ public function inject(ReplayExecutionCandidate $candidate): InjectionResult;
 | `ReplayExecutionCandidate` | Execution-facing projection derived from a stored replay record |
 | `InjectionGuard` | Explicit reinjection allowlist guard |
 | `InjectionResult` | Structured result of one guarded re-injection attempt |
+| `ReconstructionWindow` | Bounded append-ordered reconstruction window over stored artifacts |
+| `RecoveryManifest` | Deterministic identity and verdict for one evidence bundle |
+| `RuntimeContinuitySnapshot` | Reconstructed bounded runtime continuity posture |
+| `OperationRecoveryRecord` | Reconstructed operation lifecycle evidence |
+| `TerminalPublicationEvidenceRecord` | Bounded terminal-publication evidence |
+| `LifecycleSemanticEvidenceRecord` | Bounded lifecycle-semantic evidence |
+| `EvidenceRecordReference` | Provenance reference to a stored replay record used in a bundle |
+| `EvidenceBundle` | Deterministic machine-readable recovery/evidence bundle |
+| `ScenarioExpectation` | Generic scenario expectation input for comparisons |
+| `ExpectedOperationLifecycle` | Expected operation lifecycle input |
+| `ExpectedTerminalPublication` | Expected terminal-publication input |
+| `ExpectedLifecycleSemantic` | Expected lifecycle-semantic input |
+| `ScenarioComparisonResult` | Deterministic bundle-vs-expectation comparison result |
 
 ### `ReplayReadCriteria`
 
@@ -208,6 +242,25 @@ producers and checkpoint metadata:
 `runtime_flags` as a fallback for derived inspection. `pbx_node_slug` and
 `worker_session_id` are expected in `runtime_flags`.
 
+### `RecoveryMetadataKeys`
+
+`RecoveryMetadataKeys` publishes the stable additive keys used by the recovery
+and evidence engine when newer `esl-react` releases emit richer runtime truth
+through stored metadata rather than hard package types. Current keys include:
+
+- `recovery_generation_id`
+- `retry_posture`
+- `drain_posture`
+- `reconstruction_posture`
+- `replay_continuity_posture`
+- `operation_id`
+- `operation_kind`
+- `operation_state`
+- `bgapi_job_uuid`
+- `terminal_publication_id`
+- `terminal_publication_status`
+- `lifecycle_semantic`
+
 ### `ArtifactChecksum`
 
 `ArtifactChecksum::verify(StoredReplayRecord $record): bool` is the supported
@@ -239,6 +292,10 @@ $matches = $repository->find(new ReplayCheckpointCriteria(
 This repository keeps checkpoint write semantics explicit while exposing a
 bounded operational lookup surface over stable identity anchors.
 
+`ReplayCheckpointReference` and `ReplayCheckpointCriteria` now also support the
+additive identity anchor `recoveryGenerationId`, persisted as
+`recovery_generation_id` in checkpoint metadata.
+
 ### `ReplayCheckpointService`, `ExecutionResumeState`, and `ReplayCheckpointRepository`
 
 These helpers are also part of the supported checkpoint surface built around
@@ -255,6 +312,18 @@ $repository = new ReplayCheckpointRepository($checkpointStore);
 
 They remain narrowly scoped to persisted-artifact progress save/load/resume and
 do not imply live-session recovery semantics.
+
+## Stable recovery/evidence surface
+
+`RecoveryEvidenceEngine` is the stable additive recovery/evidence surface:
+
+- `reconstruct(ReconstructionWindow $window): EvidenceBundle`
+- `compareScenario(EvidenceBundle $bundle, ScenarioExpectation $expectation): ScenarioComparisonResult`
+- `exportBundle(EvidenceBundle $bundle): string`
+- `exportComparison(ScenarioComparisonResult $comparison): string`
+
+These APIs operate only on stored artifacts and deterministic projections.
+They do not become a live recovery or reconnect API.
 
 ## Stable retention surface
 

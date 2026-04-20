@@ -16,6 +16,7 @@ final class ReplayCheckpointCriteriaTest extends TestCase
             jobUuid: 'job-1',
             pbxNodeSlug: 'pbx-a',
             workerSessionId: 'worker-a',
+            recoveryGenerationId: 'gen-1',
             limit: 25,
         );
 
@@ -23,6 +24,7 @@ final class ReplayCheckpointCriteriaTest extends TestCase
         $this->assertSame('job-1', $criteria->jobUuid);
         $this->assertSame('pbx-a', $criteria->pbxNodeSlug);
         $this->assertSame('worker-a', $criteria->workerSessionId);
+        $this->assertSame('gen-1', $criteria->recoveryGenerationId);
         $this->assertSame(25, $criteria->limit);
     }
 
