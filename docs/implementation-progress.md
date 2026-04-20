@@ -74,7 +74,7 @@
 ## Next work
 
 1. Validate release-truth posture for the additive recovery/evidence surface before `1.0.0`.
-2. Current release-cut posture after recovery/evidence implementation is `v0.9.4-rc1`.
+2. Current stable release after recovery/evidence implementation is `v0.9.4`.
 
 ## Phase history
 

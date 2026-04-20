@@ -4,7 +4,7 @@ All notable changes to `apntalk/esl-replay` are documented here.
 
 ## [Unreleased]
 
-## [0.9.4-rc1] — Release Candidate
+## [0.9.4] — Stable Release
 
 ### Added
 
@@ -27,6 +27,8 @@ All notable changes to `apntalk/esl-replay` are documented here.
 - kept serialized artifact schema at `schema_version: 1`; richer runtime-truth
   fields remain additive inside existing object fields such as `payload`,
   `runtime_flags`, `correlation_ids`, and checkpoint metadata
+- promoted the recovery/evidence engine landing from `v0.9.4-rc1` to stable
+  `v0.9.4` without widening package scope or changing runtime behavior
 
 ## [0.9.3-rc1] — Release Candidate
 

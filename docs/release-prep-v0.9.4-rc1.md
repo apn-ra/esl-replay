@@ -1,5 +1,8 @@
 # Release Prep — v0.9.4-rc1
 
+This document is historical for the `v0.9.4-rc1` release-candidate pass.
+The shipped stable release for this scope is `v0.9.4`.
+
 ## Scope
 
 Prepare a release candidate cut for the additive recovery/evidence engine track.

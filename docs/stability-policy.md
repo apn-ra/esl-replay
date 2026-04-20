@@ -123,11 +123,20 @@ contracts, DTOs, config objects, and documented entry points listed above.
 | 0.9.4 | Recovery/evidence engine over stored artifacts |
 | 1.0.0 | Stable replay platform (planned) |
 
-## RC posture
+## Current release posture
 
-The current release-cut posture is `v0.9.4-rc1`, not a final patch release,
-because the new recovery/evidence engine adds additive public DTOs and
-deterministic bundle/comparison surfaces that should ship through an RC first.
+The current stable release posture is `v0.9.4`.
+
+`v0.9.4` ships the additive recovery/evidence engine over stored artifacts,
+including checkpoint reconstruction windows, `recovery_generation_id`
+checkpoint anchors, and deterministic bundle/comparison export surfaces.
+
+This stable release does not change the package boundary:
+
+- offline only
+- additive within `schema_version: 1`
+- no checksum semantic change
+- no live reconnect or session-restoration ownership
 
 ## Breaking change policy
 
